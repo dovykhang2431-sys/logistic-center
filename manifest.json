@@ -1,0 +1,17 @@
+{
+  "name": "Logistic Center",
+  "short_name": "LogisticCenter",
+  "description": "Game quản lý trung tâm logistics — Phase 1 (v1.0)",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#1e293b",
+  "lang": "vi",
+  "icons": [
+    {
+      "src": "assets/boxes.png",
+      "sizes": "256x256",
+      "type": "image/png"
+    }
+  ]
+}

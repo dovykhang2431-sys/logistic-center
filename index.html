@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Logistic Center</title>
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#1e293b" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="hud-top">
+      <div class="brand">
+        📦 Logistic Center
+        <span class="badge" id="app-version">v1.0</span>
+      </div>
+      <div class="stats">
+        <div class="stat">📅 Ngày <strong id="stat-day">1</strong> (<span id="stat-clock">08:00</span> <span id="stat-phase">☀️</span>)</div>
+        <div class="stat">💰 Tiền: <strong id="stat-money">$2,000</strong></div>
+        <div class="stat">⭐ Danh tiếng: <strong id="stat-rep">50</strong>/100</div>
+        <div class="stat">🎖️ Cấp <strong id="stat-level">1</strong> (<span id="stat-xp">0/120</span> XP)</div>
+      </div>
+      <div class="controls">
+        <button id="btn-pause">⏸️ Tạm dừng</button>
+        <button id="btn-speed">⏩ 1x</button>
+        <button id="btn-end-day">🌙 Kết thúc ngày</button>
+        <button id="btn-assets">🖼️ Asset</button>
+        <button id="btn-reset" title="Chơi lại từ đầu">🔄 Reset</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <!-- Khu vực trái: Canvas hoạt hình kho + Bản đồ phối xe -->
+      <section class="left-col">
+        <div class="canvas-wrap">
+          <canvas id="game-canvas" width="840" height="460"></canvas>
+          <div id="daylight-badge" class="daylight-badge">☀️ Ban ngày</div>
+        </div>
+
+        <!-- Tabs nghiệp vụ dưới canvas -->
+        <div class="tabs-bar">
+          <button class="tab-btn active" data-tab="tab-pick">1. Soạn hàng (Kệ)</button>
+          <button class="tab-btn" data-tab="tab-pack">2. Đóng gói</button>
+          <button class="tab-btn" data-tab="tab-dispatch">3. Phối xe & Bản đồ</button>
+          <button class="tab-btn" data-tab="tab-supplier">4. Nhà cung cấp</button>
+          <button class="tab-btn" data-tab="tab-staff">5. Nhân sự & Xe</button>
+        </div>
+
+        <div class="tab-panels">
+          <!-- Tab 1: Soạn hàng trên kệ -->
+          <div id="tab-pick" class="tab-panel active">
+            <div class="panel-note" id="pick-hint">Chọn một đơn hàng ở cột phải để bắt đầu soạn hàng bằng cách bấm đúng món trên kệ.</div>
+            <div id="shelf-grid" class="card-grid"></div>
+          </div>
+
+          <!-- Tab 2: Đóng gói -->
+          <div id="tab-pack" class="tab-panel">
+            <div class="supplies-bar" id="supplies-bar"></div>
+            <div id="packing-tables" class="card-grid"></div>
+          </div>
+
+          <!-- Tab 3: Phối xe & Bản đồ -->
+          <div id="tab-dispatch" class="tab-panel">
+            <div class="dispatch-grid">
+              <div>
+                <h4>Đơn đã đóng gói (chọn để chất lên xe)</h4>
+                <div id="packed-orders-list" class="mini-list"></div>
+              </div>
+              <div>
+                <h4>Chọn xe & Khu vực giao hàng</h4>
+                <div id="vehicle-selector" class="mini-list"></div>
+                <div id="zone-map" class="zone-map"></div>
+                <button id="btn-dispatch-go" class="primary-btn">🚀 Xuất bến giao hàng</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab 4: Nhà cung cấp -->
+          <div id="tab-supplier" class="tab-panel">
+            <div class="panel-note">Hàng đặt từ nhà cung cấp sẽ giao về kho vào <strong>sáng hôm sau</strong>. Vật tư đóng gói nhận ngay.</div>
+            <div id="supplier-products" class="card-grid"></div>
+            <h4 style="margin-top:10px;">Vật tư đóng gói</h4>
+            <div id="supplier-supplies" class="card-grid"></div>
+            <div id="pending-deliveries" class="panel-note" style="margin-top:8px;"></div>
+          </div>
+
+          <!-- Tab 5: Nhân sự & Xe -->
+          <div id="tab-staff" class="tab-panel">
+            <div id="staff-panel" class="card-grid"></div>
+            <h4 style="margin-top:10px;">Mở khóa theo cấp độ</h4>
+            <div id="unlocks-panel" class="panel-note"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Khu vực phải: Danh sách đơn hàng + Nhật ký -->
+      <aside class="right-col">
+        <div class="orders-header">
+          <h3>📋 Đơn hàng (<span id="order-count">0</span>)</h3>
+          <button id="btn-new-order" class="small-btn">+ Nhận đơn</button>
+        </div>
+        <div id="orders-list" class="orders-list"></div>
+
+        <div class="log-box">
+          <h4>Nhật ký vận hành</h4>
+          <ul id="event-log"></ul>
+        </div>
+      </aside>
+    </main>
+
+    <!-- Modal Tổng kết ngày -->
+    <div id="summary-modal" class="modal hidden">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>🌙 Tổng kết Ngày <span id="sum-day">1</span></h3>
+        </div>
+        <div id="summary-body" class="summary-body"></div>
+        <div class="modal-footer">
+          <button id="btn-next-day" class="primary-btn">☀️ Sang ngày mới</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Phá sản -->
+    <div id="bankrupt-modal" class="modal hidden">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 style="color:#f87171;">💥 PHÁ SẢN — KHÔNG ĐỦ TRẢ CHI PHÍ CỐ ĐỊNH</h3>
+        </div>
+        <div id="bankrupt-body" class="summary-body"></div>
+        <div class="modal-footer">
+          <button id="btn-restart-bankrupt" class="primary-btn">🔄 Chơi lại từ đầu ($2,000)</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Kiểm tra Asset -->
+    <div id="asset-modal" class="modal hidden">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Trạng thái Asset (13 gốc + 26 khung hình = 39)</h3>
+          <button id="btn-close-asset">✕</button>
+        </div>
+        <div id="asset-list" class="asset-grid"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/config.js"></script>
+  <script src="js/assets.js"></script>
+  <script src="js/entities.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>
