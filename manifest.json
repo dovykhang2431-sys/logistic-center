@@ -1,12 +1,12 @@
 {
   "name": "Logistic Center",
   "short_name": "LogisticCenter",
-  "description": "Game quản lý trung tâm logistics — Giao diện 6 khu vực v1.3",
+  "description": "Game quản lý trung tâm logistics — Giao diện 6 khu vực v1.4",
   "start_url": "./index.html",
   "display": "standalone",
   "orientation": "landscape",
-  "background_color": "#f6ead4",
-  "theme_color": "#d99b52",
+  "background_color": "#f4f7fb",
+  "theme_color": "#1e293b",
   "lang": "vi",
   "icons": [
     {

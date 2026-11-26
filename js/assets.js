@@ -1,13 +1,37 @@
 /**
- * AssetManager — Quản lý 13 asset gốc + 6 icon sản phẩm + 26 khung hình chuyển động (tổng 45 asset)
- * Sửa lỗi 1: Theo dõi chính xác trạng thái thật ('loading' -> 'loaded' | 'missing') và dùng đường dẫn tương đối an toàn.
- * Sửa lỗi 2: Tải ưu tiên nhóm cảnh chính trước (8 ảnh cảnh kho + 6 icon sản phẩm) để vẽ kho sau vài giây đầu,
- *            sau đó mới tải nền (lazy-load) 26 khung hình animation.
+ * AssetManager — Quản lý 13 asset gốc + 7 ảnh nền/khu mới v1.4 + 6 icon sản phẩm + 26 khung hình chuyển động (tổng 52 asset)
+ * 7 ảnh PNG RGB đục mới (hub-scene.png + 6 zone-*.png) dùng nguyên bản full-bleed, KHÔNG lọc nền trắng.
  */
+const OPAQUE_SCENE_ASSETS = new Set([
+  'hub-scene.png',
+  'zone-nhap-hang.png',
+  'zone-kho.png',
+  'zone-dong-goi.png',
+  'zone-giao-hang.png',
+  'zone-van-phong.png',
+  'zone-quay-don.png'
+]);
+
 const ASSET_MANIFEST = {
-  // 14 ảnh cảnh kho chính cần hiển thị ngay lập tức
+  // 7 ảnh nền hub & đại diện 6 khu vực mới (v1.4)
+  hubAndZones: [
+    'hub-scene.png',
+    'zone-nhap-hang.png',
+    'zone-kho.png',
+    'zone-dong-goi.png',
+    'zone-giao-hang.png',
+    'zone-van-phong.png',
+    'zone-quay-don.png'
+  ],
+  // Ảnh cảnh chính cần hiển thị ngay lập tức
   primaryScene: [
-    'scene-bg.png',
+    'hub-scene.png',
+    'zone-nhap-hang.png',
+    'zone-kho.png',
+    'zone-dong-goi.png',
+    'zone-giao-hang.png',
+    'zone-van-phong.png',
+    'zone-quay-don.png',
     'shelf-rack.png',
     'shelf-cold.png',
     'conveyor.png',
@@ -22,7 +46,6 @@ const ASSET_MANIFEST = {
   ],
   // 13 asset gốc (giữ nguyên tên file cũ)
   base: [
-    'scene-bg.png',
     'shelf-rack.png',
     'shelf-cold.png',
     'conveyor.png',
@@ -37,7 +60,7 @@ const ASSET_MANIFEST = {
     'city-house.png',
     'city-shop.png'
   ],
-  // 6 icon sản phẩm mới
+  // 6 icon sản phẩm
   productIcons: [
     'item-food.png',
     'item-electronics.png',
@@ -72,7 +95,7 @@ class AssetManager {
 
   getAllFilenames() {
     const animFiles = Object.values(ASSET_MANIFEST.animations).flat();
-    return [...ASSET_MANIFEST.base, ...ASSET_MANIFEST.productIcons, ...animFiles];
+    return [...new Set([...ASSET_MANIFEST.hubAndZones, ...ASSET_MANIFEST.base, ...ASSET_MANIFEST.productIcons, ...animFiles])];
   }
 
   getPrimaryFilenames() {
@@ -139,8 +162,8 @@ class AssetManager {
       const img = new Image();
       img.onload = () => {
         if (img.naturalWidth > 0 && img.naturalHeight > 0) {
-          // Toàn bộ sprite PNG đã có kênh alpha trong suốt sẵn; chỉ lọc nền trắng nếu ảnh không có alpha ở góc
-          const cleaned = filename === 'scene-bg.png' ? img : this.cleanIfOpaqueWhite(img);
+          // 7 ảnh hub/zone là PNG RGB đục dùng full-bleed, KHÔNG cắt nền trắng
+          const cleaned = OPAQUE_SCENE_ASSETS.has(filename) ? img : this.cleanIfOpaqueWhite(img);
           this.images.set(filename, cleaned);
           this.dataUrls.set(filename, resolvedUrl);
           this.status.set(filename, 'loaded');

@@ -3,139 +3,312 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>Logistic Center</title>
+  <title>Logistic Center — v1.4</title>
   <link rel="manifest" href="manifest.json" />
-  <meta name="theme-color" content="#d99b52" />
+  <meta name="theme-color" content="#1e293b" />
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
-  <div id="app">
-    <!-- LỚP CẢNH 6 KHU VỰC ISOMETRIC DOLLHOUSE CẮT MỞ -->
-    <div class="scene-layer" id="scene-layer">
-      <canvas id="game-canvas" width="1260" height="540"></canvas>
-      <div id="loading-overlay" class="loading-chip hidden">⏳ Đang tải cảnh kho...</div>
-    </div>
-
-    <!-- HUD TRÊN CÙNG DẠNG CHIP NỔI RỜI (KHÔNG THANH DÀI KÍN MÀN HÌNH) -->
-    <header class="hud-floating">
-      <div class="hud-chips-left">
-        <div class="hud-chip chip-day">
-          <span class="chip-icon" id="stat-phase">☀️</span>
-          <strong id="stat-day-label">Ngày 1</strong>
-          <span class="dot-sep">•</span>
-          <strong id="stat-clock">08:00</strong>
+  <div id="appShell">
+    <!-- 1. THANH TOP BAR PHONG CÁCH STARUP (SỐ TO RÕ, THAY HOÀN TOÀN CHIPS NỔI v1.3) -->
+    <header class="hud-top" aria-label="Thanh thông tin chính">
+      <div class="hud-left">
+        <div id="resPill" class="hud-cream res-pill" role="button" tabindex="0" title="Mở Ngân hàng & Tài chính">
+          <span class="res-badge badge-money">$</span>
+          <strong id="stat-money" class="hud-num">2,000</strong>
+          <span id="hud-debt-pill" class="debt-tag" title="Dư nợ ngân hàng">Nợ <strong id="stat-debt">$0</strong></span>
+          <span class="pill-divider" aria-hidden="true"></span>
+          <span class="res-badge badge-star">★</span>
+          <strong id="stat-rep" class="hud-num">50</strong>
         </div>
 
-        <div class="hud-chip chip-money">
-          <span class="coin-badge">$</span>
-          <strong id="stat-money">2,000</strong>
-        </div>
-
-        <div class="hud-chip chip-debt" id="hud-debt-pill">
-          <span>💳 Nợ:</span>
-          <strong id="stat-debt">$0</strong>
-        </div>
-
-        <div class="hud-chip chip-rep">
-          <span class="star-badge">★</span>
-          <strong id="stat-rep">50</strong>
-        </div>
-
-        <div class="hud-chip chip-xp">
-          <span class="xp-badge">XP</span>
-          <div class="xp-track">
-            <div class="xp-fill" id="xp-bar-fill" style="width: 0%;"></div>
-            <span class="xp-label">Cấp <strong id="stat-level">1</strong> (<span id="stat-xp">0/120</span>)</span>
+        <div id="xpPill" class="hud-cream xp-pill" role="button" tabindex="0" title="Mở Văn phòng & Mốc mở khóa">
+          <span class="level-tag">Cấp <strong id="stat-level">1</strong></span>
+          <div class="xp-bar-wrap">
+            <div class="xp-bar-track">
+              <div id="xp-bar-fill" class="xp-bar-fill" style="width: 0%;"></div>
+            </div>
+            <span id="stat-xp" class="xp-text">0/120</span>
           </div>
-          <span class="ver-pill" id="app-version">v1.3</span>
+          <span id="app-version" class="ver-pill">v1.4</span>
         </div>
       </div>
 
-      <!-- 2 NÚT TRÒN NỔI GÓC TRÊN PHẢI -->
-      <div class="hud-actions-right">
-        <button class="circle-btn btn-orange" id="btn-pause" title="Tạm dừng / Tiếp tục" aria-label="Tạm dừng">⏸</button>
-        <button class="circle-btn btn-teal" id="btn-speed" title="Đổi tốc độ 1x / 2x" aria-label="Tốc độ">1x</button>
+      <div class="hud-center">
+        <div class="hud-wood clock-pill" aria-label="Thời gian trong game">
+          <span id="stat-phase" class="clock-sun" aria-hidden="true">☀️</span>
+          <span class="clock-text">
+            <span id="stat-day-label">Ngày 1</span> · <span id="stat-clock">08:00</span>
+          </span>
+          <button id="btn-pause" type="button" class="speed-chip" aria-pressed="false" title="Tạm dừng / Tiếp tục">⏸</button>
+          <button id="btn-speed" type="button" class="speed-chip speed-rate" title="Đổi tốc độ 1x / 2x">1x</button>
+        </div>
+      </div>
+
+      <div class="hud-right">
+        <span id="pause-state-tag" class="pause-state-tag hidden">TẠM DỪNG</span>
+        <button id="btn-toggle-log" type="button" class="hud-cream icon-circle" title="Nhật ký vận hành" aria-label="Nhật ký vận hành">
+          <svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
+            <rect x="5" y="7" width="22" height="18" rx="3" fill="#F8FAFC" stroke="#475569" stroke-width="1.8"/>
+            <rect x="8.5" y="10.5" width="8" height="5.5" rx="1" fill="#3B82F6"/>
+            <path d="M19.5 11.5h4.5M19.5 15h4.5M8.5 20h15.5" stroke="#475569" stroke-width="1.8" stroke-linecap="round"/>
+          </svg>
+        </button>
+        <button id="btn-assets" type="button" class="hud-cream icon-circle hide-narrow" title="Trạng thái tài nguyên ảnh" aria-label="Trạng thái Asset">
+          <svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
+            <rect x="5" y="6" width="22" height="20" rx="3" fill="#F8FAFC" stroke="#475569" stroke-width="1.8"/>
+            <circle cx="11.5" cy="12.5" r="2.2" fill="#EA580C"/>
+            <path d="M6.5 23l5.5-5.5 4 4 3.5-3.5 6 5" stroke="#2563EB" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
       </div>
     </header>
 
-    <!-- DẢI THẺ ĐƠN HÀNG NỔI PHÍA DƯỚI + 1 NÚT MENU TRÒN LỚN GÓC DƯỚI PHẢI -->
-    <section class="bottom-overlay">
-      <div class="orders-float-strip" id="orders-strip"></div>
-      <button class="menu-fab btn-orange" id="btn-open-menu" title="Mở Menu 7 mục" aria-label="Mở Menu">
-        <span class="fab-icon">▦</span>
-        <span class="fab-text">Menu</span>
-      </button>
-    </section>
+    <!-- 2. KHU VỰC GIỮA: CẢNH TRUNG TÂM HUB-SCENE.PNG FULL-BLEED + CANVAS 60FPS + 6 VÙNG BẤM -->
+    <main class="stage-wrap" aria-label="Bản đồ trung tâm logistics 6 khu">
+      <div class="hub-stage-card" id="scene-layer">
+        <div class="hub-stage-frame" id="hub-stage-frame">
+          <img
+            id="hub-scene-img"
+            class="hub-scene-bg"
+            src="assets/hub-scene.png"
+            alt="Toàn cảnh trung tâm Logistics 2 tầng 6 khu vực"
+            draggable="false"
+          />
+          <canvas id="game-canvas" width="1260" height="540" aria-label="Lớp nhân viên và xe chuyển động 60fps"></canvas>
 
-    <!-- BẢNG QUẢN LÝ TRƯỢT LÊN TỪ DƯỚI (KHÔNG CHE HẾT CẢNH 6 KHU) -->
-    <div id="menu-backdrop" class="drawer-backdrop hidden"></div>
-    <section id="menu-drawer" class="menu-drawer hidden" aria-label="Bảng quản lý khu vực">
-      <div class="drawer-top" id="drawer-top">
-        <nav class="drawer-tabs" id="drawer-tabs">
-          <button class="dtab active" data-tab="tab-orders">📋 Đơn hàng</button>
-          <button class="dtab" data-tab="tab-pick">🧺 Soạn hàng</button>
-          <button class="dtab" data-tab="tab-pack">📦 Đóng gói</button>
-          <button class="dtab" data-tab="tab-dispatch">🚚 Giao hàng</button>
-          <button class="dtab" data-tab="tab-supplier">🏭 Nhà cung cấp</button>
-          <button class="dtab" data-tab="tab-staff">👷 Nhân viên</button>
-          <button class="dtab" data-tab="tab-bank">🏦 Ngân hàng</button>
-        </nav>
-        <div class="drawer-utils">
-          <button class="util-btn btn-wood" id="btn-end-day" title="Kết thúc ngày">🌙 Hết ngày</button>
-          <button class="util-btn btn-wood" id="btn-toggle-log" title="Nhật ký vận hành">📜</button>
-          <button class="util-btn btn-wood" id="btn-assets" title="Kiểm tra Asset">🖼️</button>
-          <button class="util-btn btn-wood" id="btn-reset" title="Chơi lại từ đầu">🔄</button>
-          <button class="util-btn btn-orange" id="btn-close-menu" title="Đóng bảng">✕</button>
+          <!-- 6 Vùng bấm tương ứng 6 khu (khớp vị trí thật trên ảnh hub-scene.png, không che ảnh) -->
+          <div class="zone-hotspots" id="zone-hotspots">
+            <button
+              type="button"
+              class="zone-hotspot chip-receiving"
+              data-zone="receiving"
+              style="left: 52%; top: 37%; width: 20%; height: 18%;"
+              aria-label="Khu 1: Nhập hàng"
+            >
+              <span class="room-chip">
+                <span class="chip-num">1</span>
+                <span class="chip-icon">🚛</span>
+                <span class="chip-label">Nhập hàng</span>
+                <span class="chip-badge" data-zone-badge="receiving">0 về</span>
+              </span>
+            </button>
+
+            <button
+              type="button"
+              class="zone-hotspot chip-shelves"
+              data-zone="shelves"
+              style="left: 17%; top: 43%; width: 32%; height: 22%;"
+              aria-label="Khu 2: Kho Kệ hàng"
+            >
+              <span class="room-chip">
+                <span class="chip-num">2</span>
+                <span class="chip-icon">🗄️</span>
+                <span class="chip-label">Kho Kệ hàng</span>
+                <span class="chip-badge" data-zone-badge="shelves">29/60</span>
+              </span>
+            </button>
+
+            <button
+              type="button"
+              class="zone-hotspot chip-packing"
+              data-zone="packing"
+              style="left: 33%; top: 66%; width: 23%; height: 26%;"
+              aria-label="Khu 3: Đóng gói"
+            >
+              <span class="room-chip">
+                <span class="chip-num">3</span>
+                <span class="chip-icon">📦</span>
+                <span class="chip-label">Đóng gói</span>
+                <span class="chip-badge" data-zone-badge="packing">0 chờ</span>
+              </span>
+            </button>
+
+            <button
+              type="button"
+              class="zone-hotspot chip-dispatch"
+              data-zone="dispatch"
+              style="left: 74%; top: 47%; width: 23%; height: 35%;"
+              aria-label="Khu 4: Giao hàng"
+            >
+              <span class="room-chip">
+                <span class="chip-num">4</span>
+                <span class="chip-icon">🚚</span>
+                <span class="chip-label">Giao hàng</span>
+                <span class="chip-badge" data-zone-badge="dispatch">Sẵn sàng</span>
+              </span>
+            </button>
+
+            <button
+              type="button"
+              class="zone-hotspot chip-office"
+              data-zone="office"
+              style="left: 17%; top: 7%; width: 44%; height: 30%;"
+              aria-label="Khu 5: Văn phòng"
+            >
+              <span class="room-chip">
+                <span class="chip-num">5</span>
+                <span class="chip-icon">🏢</span>
+                <span class="chip-label">Văn phòng</span>
+                <span class="chip-badge" data-zone-badge="office">2 NV</span>
+              </span>
+            </button>
+
+            <button
+              type="button"
+              class="zone-hotspot chip-orders"
+              data-zone="orders"
+              style="left: 57%; top: 56%; width: 16.5%; height: 20%;"
+              aria-label="Khu 6: Quầy Đơn hàng"
+            >
+              <span class="room-chip">
+                <span class="chip-num">6</span>
+                <span class="chip-icon">📋</span>
+                <span class="chip-label">Quầy Đơn</span>
+                <span class="chip-badge" data-zone-badge="orders">2 đơn</span>
+              </span>
+            </button>
+          </div>
         </div>
+        <div id="loading-overlay" class="loading-chip hidden">⏳ Đang tải cảnh trung tâm...</div>
+      </div>
+    </main>
+
+    <!-- 3. HÀNG 3 THẺ ĐƠN HÀNG NẰM NGANG PHÍA DƯỚI CẢNH (MỖI THẺ CÓ NÚT HÀNH ĐỘNG THẬT) -->
+    <section class="orders-strip" id="orders-strip" aria-label="Hàng thẻ đơn hàng hiện tại"></section>
+
+    <!-- 4. THANH 6 TAB DƯỚI CÙNG (NHƯ MOCKUP STARUP) -->
+    <nav class="hud-bottom" aria-label="Thanh tab quản lý 6 mục">
+      <button type="button" class="dock-btn dock-orders" data-tab="orders">
+        <span class="dock-pip" id="pip-orders">0</span>
+        <svg class="dock-btn-svg" viewBox="0 0 36 36" fill="none" aria-hidden="true">
+          <rect x="8" y="7" width="20" height="23" rx="3" fill="#F8FAFC" stroke="#334155" stroke-width="1.8"/>
+          <rect x="13" y="4.5" width="10" height="4.5" rx="1.5" fill="#DC2626"/>
+          <path d="M12.5 14.5h11M12.5 19.5h11M12.5 24.5h7" stroke="#475569" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+        <span class="dock-btn-label">Đơn hàng</span>
+      </button>
+
+      <button type="button" class="dock-btn dock-suppliers" data-tab="suppliers">
+        <span class="dock-pip pip-info hidden" id="pip-suppliers">0</span>
+        <svg class="dock-btn-svg" viewBox="0 0 36 36" fill="none" aria-hidden="true">
+          <rect x="4.5" y="11.5" width="17.5" height="13.5" rx="2" fill="#F8FAFC" stroke="#334155" stroke-width="1.8"/>
+          <path d="M22 14.5h5.5l4 4.8V25H22V14.5z" fill="#FFF7ED" stroke="#EA580C" stroke-width="1.8" stroke-linejoin="round"/>
+          <circle cx="11" cy="26.5" r="2.8" fill="#475569" stroke="#1E293B" stroke-width="1.4"/>
+          <circle cx="26.5" cy="26.5" r="2.8" fill="#475569" stroke="#1E293B" stroke-width="1.4"/>
+        </svg>
+        <span class="dock-btn-label">Nhà cung cấp</span>
+      </button>
+
+      <button type="button" class="dock-btn dock-bank" data-tab="bank">
+        <svg class="dock-btn-svg" viewBox="0 0 36 36" fill="none" aria-hidden="true">
+          <path d="M5 14L18 6l13 8H5z" fill="#ECFDF5" stroke="#059669" stroke-width="1.8" stroke-linejoin="round"/>
+          <path d="M9 14.5v10.5M15 14.5v10.5M21 14.5v10.5M27 14.5v10.5" stroke="#334155" stroke-width="2" stroke-linecap="round"/>
+          <rect x="5" y="25.5" width="26" height="4" rx="1.5" fill="#F1F5F9" stroke="#334155" stroke-width="1.7"/>
+        </svg>
+        <span class="dock-btn-label">Ngân hàng</span>
+      </button>
+
+      <button type="button" class="dock-btn dock-staff" data-tab="staff">
+        <svg class="dock-btn-svg" viewBox="0 0 36 36" fill="none" aria-hidden="true">
+          <circle cx="14" cy="13" r="4.5" fill="#EEF2FF" stroke="#4F46E5" stroke-width="1.8"/>
+          <path d="M6 28.5c0-4.6 3.6-7.5 8-7.5s8 2.9 8 7.5" fill="#F8FAFC" stroke="#334155" stroke-width="1.8" stroke-linecap="round"/>
+          <circle cx="24.5" cy="15" r="3.5" fill="#F1F5F9" stroke="#475569" stroke-width="1.6"/>
+          <path d="M22.5 28.5c.8-3.6 3-5.5 6-5.5 2.2 0 3.6 1.3 4.2 5.5" stroke="#475569" stroke-width="1.6" stroke-linecap="round"/>
+        </svg>
+        <span class="dock-btn-label">Nhân viên</span>
+      </button>
+
+      <button type="button" class="dock-btn dock-warehouse" data-tab="warehouse">
+        <span class="dock-pip pip-warn hidden" id="pip-warehouse">!</span>
+        <svg class="dock-btn-svg" viewBox="0 0 36 36" fill="none" aria-hidden="true">
+          <path d="M7 12.5L18 7l11 5.5v12L18 30 7 24.5v-12z" fill="#EFF6FF" stroke="#0284C7" stroke-width="1.8" stroke-linejoin="round"/>
+          <path d="M7 12.5L18 18l11-5.5M18 18v12" stroke="#0284C7" stroke-width="1.8"/>
+        </svg>
+        <span class="dock-btn-label">Kho</span>
+      </button>
+
+      <button type="button" class="dock-btn dock-office" data-tab="office">
+        <svg class="dock-btn-svg" viewBox="0 0 36 36" fill="none" aria-hidden="true">
+          <rect x="7" y="7" width="22" height="22" rx="2.5" fill="#F8FAFC" stroke="#334155" stroke-width="1.8"/>
+          <rect x="11.5" y="11.5" width="4.5" height="4.5" rx="0.8" fill="#3B82F6"/>
+          <rect x="20" y="11.5" width="4.5" height="4.5" rx="0.8" fill="#3B82F6"/>
+          <rect x="15" y="20" width="6" height="9" rx="0.8" fill="#E2E8F0" stroke="#334155" stroke-width="1.5"/>
+        </svg>
+        <span class="dock-btn-label">Văn phòng</span>
+      </button>
+    </nav>
+
+    <!-- 5. PANEL TRƯỢT LÊN (SLIDE-UP SHEET) NỐI VÀO MECHANICS THẬT -->
+    <div id="menu-backdrop" class="sheet-backdrop" aria-hidden="true"></div>
+    <aside id="menu-drawer" class="detail-sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle" aria-hidden="true">
+      <div class="sheet-header">
+        <div class="sheet-title-wrap">
+          <div id="sheetHeroIcon" class="up-hero-icon">📋</div>
+          <div class="sheet-title-col">
+            <h2 id="sheetTitle" class="sheet-title">Quản lý Đơn hàng</h2>
+            <p id="sheetSubtitle" class="sheet-subtitle">Trung tâm Logistic Center v1.4</p>
+          </div>
+        </div>
+        <button id="btn-close-menu" type="button" class="up-close-btn" aria-label="Đóng bảng chi tiết">✕</button>
       </div>
 
-      <div class="drawer-zone-banner hidden" id="drawer-zone-banner"></div>
+      <!-- Thanh sub-tab cho nhóm Đơn hàng / Đóng gói / Phối xe -->
+      <div id="orders-subtabs" class="sheet-subtabs hidden">
+        <button type="button" class="sub-tab-btn active" data-subtab="tab-orders">📋 Danh sách đơn (<span id="subtab-order-count">0</span>)</button>
+        <button type="button" class="sub-tab-btn" data-subtab="tab-pack">📦 Đóng gói (<span id="subtab-pack-count">0</span>)</button>
+        <button type="button" class="sub-tab-btn" data-subtab="tab-dispatch">🚚 Phối xe & Bản đồ (<span id="subtab-dispatch-count">0</span>)</button>
+      </div>
 
-      <div class="drawer-body" id="drawer-body">
-        <!-- Tab 1: Quầy Đơn hàng -->
+      <div id="drawer-body" class="sheet-body">
+        <!-- Ảnh Hero đại diện khu vực (dùng 6 ảnh zone-*.png đục full-bleed bo góc) -->
+        <div id="zone-hero-banner" class="zone-hero-banner">
+          <div class="zone-hero-thumb-wrap">
+            <img id="zone-hero-img" class="zone-hero-img" src="assets/zone-quay-don.png" alt="Ảnh khu vực" />
+          </div>
+          <div class="zone-hero-info">
+            <div id="zone-hero-title" class="zone-hero-title">Khu 6 · Quầy Đơn hàng</div>
+            <div id="zone-hero-desc" class="zone-hero-desc">Tiếp nhận đơn mới, soạn nhanh theo lô, đóng gói và điều phối xe giao hàng.</div>
+          </div>
+        </div>
+
+        <!-- TAB 1A: ĐƠN HÀNG (Danh sách đầy đủ + Nhận đơn + Soạn lô) -->
         <div id="tab-orders" class="tab-content active">
           <div class="toolbar-row">
-            <div class="wood-banner" style="margin:0; flex:1;">Đơn hàng đang hoạt động: <strong id="order-count">0</strong></div>
-            <button class="game-btn btn-orange" id="btn-batch-pick">⚡ Soạn tất cả</button>
-            <button class="game-btn btn-teal" id="btn-new-order">+ Nhận đơn</button>
+            <div class="info-banner" style="margin:0; flex:1;">
+              Đơn hàng đang hoạt động: <strong id="order-count">0</strong> · Chọn hành động trực tiếp trên từng đơn hoặc soạn lô nhanh.
+            </div>
+            <button type="button" class="up-buy-btn btn-amber" id="btn-batch-pick">⚡ Soạn tất cả</button>
+            <button type="button" class="up-buy-btn btn-blue" id="btn-new-order">+ Nhận đơn</button>
           </div>
-          <div id="orders-drawer-list" class="visual-grid"></div>
+          <div id="orders-drawer-list" class="sheet-grid-2"></div>
         </div>
 
-        <!-- Tab 2: Kho Kệ hàng (Soạn hàng + Kho dự trữ + Bổ sung kệ X/12) -->
-        <div id="tab-pick" class="tab-content">
-          <div class="toolbar-row">
-            <div class="wood-banner" id="pick-hint" style="margin:0; flex:1;">Chọn một đơn hàng để bắt đầu soạn hàng bằng cách bấm đúng món trên kệ.</div>
-            <button class="game-btn btn-orange" id="btn-replenish-all">📥 Châm tất cả</button>
-          </div>
-          <div id="shelf-grid" class="visual-grid"></div>
-        </div>
-
-        <!-- Tab 3: Khu Đóng gói (Vật tư + Đơn chờ đóng gói + Bàn đóng gói) -->
+        <!-- TAB 1B: ĐÓNG GÓI (Vật tư + Đơn chờ gói + 2 Bàn đóng gói) -->
         <div id="tab-pack" class="tab-content">
           <div class="supplies-strip" id="supplies-bar"></div>
-          <div class="sub-heading">📋 Danh sách đơn chờ đóng gói</div>
+          <div class="section-heading">📋 Danh sách đơn chờ đóng gói</div>
           <div id="ready-to-pack-list" class="ready-pack-strip"></div>
-          <div class="sub-heading" style="margin-top:8px;">📦 Bàn đóng gói</div>
-          <div id="packing-tables" class="visual-grid"></div>
+          <div class="section-heading">📦 Bàn đóng gói tự động</div>
+          <div id="packing-tables" class="sheet-grid-2"></div>
         </div>
 
-        <!-- Tab 4: Khu Giao hàng (Điều phối + Xe đang giao + Bản đồ tuyến) -->
+        <!-- TAB 1C: PHỐI XE & BẢN ĐỒ TUYẾN (Giữ route-map-canvas v1.3) -->
         <div id="tab-dispatch" class="tab-content">
           <div class="dispatch-layout">
             <div class="dispatch-col">
-              <div class="sub-heading">1. Đơn đã đóng gói</div>
+              <div class="section-heading">1. Đơn đã đóng gói</div>
               <div id="packed-orders-list" class="packed-cards"></div>
-              <div class="sub-heading" style="margin-top:10px;">🚚 Xe đang giao đơn</div>
+              <div class="section-heading" style="margin-top:8px;">🚚 Xe đang giao đơn</div>
               <div id="active-deliveries-list" class="packed-cards"></div>
             </div>
             <div class="dispatch-col">
-              <div class="sub-heading">2. Chọn xe</div>
+              <div class="section-heading">2. Chọn xe xuất bến</div>
               <div id="vehicle-selector" class="veh-cards"></div>
-              <button id="btn-dispatch-go" class="game-btn btn-orange full-btn">🚀 Xuất bến</button>
+              <button type="button" id="btn-dispatch-go" class="up-buy-btn btn-amber full-btn">🚀 Xuất bến giao hàng</button>
             </div>
             <div class="dispatch-col map-col">
-              <div class="sub-heading">3. Bản đồ tuyến giao</div>
+              <div class="section-heading">3. Bản đồ tuyến giao</div>
               <div class="route-map-wrap">
                 <canvas id="route-map-canvas" width="380" height="160"></canvas>
                 <div id="zone-map" class="zone-pills"></div>
@@ -144,101 +317,172 @@
           </div>
         </div>
 
-        <!-- Tab 5: Khu Nhập hàng (3 Nhà cung cấp + Nhập hàng & Vật tư) -->
+        <!-- TAB 2: NHÀ CUNG CẤP (3 nhà A/B/C + 6 sản phẩm + Vật tư, cuộn đầy đủ) -->
         <div id="tab-supplier" class="tab-content">
           <div id="supplier-selector" class="supplier-selector"></div>
           <div class="toolbar-row">
-            <div class="wood-banner" style="margin:0; flex:1;">Hàng về <strong>Kho dự trữ</strong>. Mua ≥10 giảm 5%, ≥20 giảm 10%.</div>
+            <div class="info-banner" style="margin:0; flex:1;">
+              Hàng đặt giao về <strong>Kho dự trữ</strong>. Chiết khấu số lượng: <strong>≥10 giảm 5%</strong>, <strong>≥20 giảm 10%</strong>.
+            </div>
             <div id="pending-deliveries" class="pending-badge"></div>
           </div>
-          <div id="supplier-products" class="visual-grid"></div>
-          <div class="sub-heading" style="margin-top:10px;">Vật tư đóng gói (nhận ngay)</div>
-          <div id="supplier-supplies" class="visual-grid"></div>
+          <div class="section-heading">📦 Danh mục 6 mặt hàng nhập kho</div>
+          <div id="supplier-products" class="sheet-grid-3"></div>
+          <div class="section-heading">🎞️ Vật tư đóng gói (nhận ngay lập tức)</div>
+          <div id="supplier-supplies" class="sheet-grid-3"></div>
         </div>
 
-        <!-- Tab 6: Nhân viên & Xe (một phần của Văn phòng) -->
-        <div id="tab-staff" class="tab-content">
-          <div class="office-sec-title">👷 Nhân viên & Đội xe</div>
-          <div id="staff-panel" class="visual-grid"></div>
-          <div id="unlocks-panel" class="wood-banner" style="margin-top:10px;"></div>
-        </div>
-
-        <!-- Tab 7: Ngân hàng (một phần của Văn phòng) -->
+        <!-- TAB 3: NGÂN HÀNG (Vay vốn + Trả nợ + Gửi/Rút tiết kiệm) -->
         <div id="tab-bank" class="tab-content">
-          <div class="office-sec-title">🏦 Ngân hàng — Vay vốn & Tiết kiệm</div>
+          <div class="stats-strip" id="bank-top-stats">
+            <div class="stat-chip"><span>💳 Hạn mức vay</span><strong id="bank-limit">$7,500</strong></div>
+            <div class="stat-chip"><span>🧾 Dư nợ hiện tại</span><strong id="bank-loan" style="color:#DC2626;">$0</strong></div>
+            <div class="stat-chip"><span>🐷 Tiết kiệm</span><strong id="bank-savings" style="color:#059669;">$0</strong></div>
+          </div>
+
           <div class="bank-layout">
-            <div class="bank-card">
-              <div class="sub-heading">💳 Vay vốn kinh doanh (Lãi 1%/ngày)</div>
-              <div class="bank-stat-row"><span>Hạn mức tín dụng:</span><strong id="bank-limit">$7,500</strong></div>
-              <div class="bank-stat-row"><span>Dư nợ hiện tại:</span><strong id="bank-loan" style="color:#c2410c;">$0</strong></div>
-              <div class="bank-stat-row"><span>Có thể vay thêm:</span><strong id="bank-avail" style="color:#0f766e;">$7,500</strong></div>
-              <div class="bank-stat-row"><span>Trả tối thiểu cuối ngày:</span><strong id="bank-min-repay">$0</strong></div>
+            <div class="up-card bank-card">
+              <div class="section-heading">💳 Vay vốn kinh doanh (Lãi 1%/ngày)</div>
+              <div class="bank-stat-row"><span>Có thể vay thêm:</span><strong id="bank-avail" style="color:#059669;">$7,500</strong></div>
+              <div class="bank-stat-row"><span>Trả tối thiểu cuối ngày (max $50, 5% nợ):</span><strong id="bank-min-repay">$0</strong></div>
+              <div class="bank-quick-row">
+                <button type="button" class="quick-amt-btn" data-fill-input="input-loan-amount" data-fill-val="500">+$500</button>
+                <button type="button" class="quick-amt-btn" data-fill-input="input-loan-amount" data-fill-val="1000">+$1,000</button>
+                <button type="button" class="quick-amt-btn" data-fill-input="input-loan-amount" data-fill-val="2000">+$2,000</button>
+              </div>
               <div class="bank-input-row">
                 <input type="number" id="input-loan-amount" min="1" step="50" placeholder="Số tiền vay ($)" />
-                <button class="game-btn btn-teal" id="btn-borrow">💵 Vay</button>
+                <button type="button" class="up-buy-btn btn-blue" id="btn-borrow">💵 Vay</button>
               </div>
               <div class="bank-input-row">
                 <input type="number" id="input-repay-amount" min="1" step="50" placeholder="Số tiền trả nợ ($)" />
-                <button class="game-btn btn-orange" id="btn-repay">✅ Trả nợ</button>
+                <button type="button" class="up-buy-btn btn-amber" id="btn-repay">✅ Trả nợ</button>
               </div>
             </div>
 
-            <div class="bank-card">
-              <div class="sub-heading">🐷 Gửi tiết kiệm (Lãi 0.2%/ngày)</div>
-              <div class="bank-stat-row"><span>Số dư tiết kiệm:</span><strong id="bank-savings" style="color:#15803d;">$0</strong></div>
-              <div class="bank-stat-row"><span>Lãi dự kiến cuối ngày:</span><strong id="bank-savings-est">+$0</strong></div>
-              <div class="wood-banner" style="margin:4px 0;">Gửi hoặc rút bất cứ lúc nào. Lãi 0.2%/ngày cộng trong tổng kết ngày.</div>
+            <div class="up-card bank-card">
+              <div class="section-heading">🐷 Gửi tiết kiệm (Lãi 0.2%/ngày)</div>
+              <div class="bank-stat-row"><span>Lãi dự kiến cuối ngày:</span><strong id="bank-savings-est" style="color:#059669;">+$0</strong></div>
+              <div class="info-banner" style="margin:2px 0;">
+                Gửi hoặc rút bất cứ lúc nào. Lãi 0.2%/ngày được tự động cộng trong tổng kết cuối ngày.
+              </div>
+              <div class="bank-quick-row">
+                <button type="button" class="quick-amt-btn" data-fill-input="input-savings-amount" data-fill-val="200">$200</button>
+                <button type="button" class="quick-amt-btn" data-fill-input="input-savings-amount" data-fill-val="500">$500</button>
+                <button type="button" class="quick-amt-btn" data-fill-input="input-savings-amount" data-fill-val="1000">$1,000</button>
+              </div>
               <div class="bank-input-row">
                 <input type="number" id="input-savings-amount" min="1" step="50" placeholder="Số tiền gửi / rút ($)" />
-                <button class="game-btn btn-teal" id="btn-deposit">📥 Gửi</button>
-                <button class="game-btn btn-wood" id="btn-withdraw">📤 Rút</button>
+                <button type="button" class="up-buy-btn" id="btn-deposit">📥 Gửi</button>
+                <button type="button" class="up-buy-btn btn-neutral" id="btn-withdraw">📤 Rút</button>
               </div>
             </div>
           </div>
         </div>
-      </div>
-    </section>
 
-    <!-- Hộp nhật ký nổi -->
-    <div id="log-drawer" class="log-drawer hidden">
-      <div class="log-drawer-head">
-        <strong>📜 Nhật ký vận hành</strong>
-        <button class="util-btn btn-wood" id="btn-close-log">✕</button>
+        <!-- TAB 4: NHÂN VIÊN & ĐỘI XE -->
+        <div id="tab-staff" class="tab-content">
+          <div class="stats-strip" id="staff-summary-strip"></div>
+          <div class="section-heading">👷 Tuyển dụng Nhân sự & Mua Phương tiện</div>
+          <div id="staff-panel" class="sheet-grid-3"></div>
+        </div>
+
+        <!-- TAB 5: KHO KỆ HÀNG (6 sản phẩm Kệ X/12 • Dự trữ Y + HSD + Châm hàng) -->
+        <div id="tab-pick" class="tab-content">
+          <div class="toolbar-row">
+            <div class="info-banner" id="pick-hint" style="margin:0; flex:1;">
+              Chọn một thẻ đơn hàng phía dưới để soạn từng món trên kệ, hoặc châm hàng từ Kho dự trữ lên kệ.
+            </div>
+            <button type="button" class="up-buy-btn btn-blue" id="btn-batch-pick-shelf">⚡ Soạn lô</button>
+            <button type="button" class="up-buy-btn btn-amber" id="btn-replenish-all">📥 Châm tất cả</button>
+          </div>
+          <div id="shelf-grid" class="sheet-grid-3"></div>
+        </div>
+
+        <!-- TAB 6: VĂN PHÒNG (Tổng quan + Mốc mở khóa + Nhật ký + Kết thúc ngày + Lưu game) -->
+        <div id="tab-office" class="tab-content">
+          <div class="stats-strip" id="office-overview-strip"></div>
+          <div id="unlocks-panel" class="info-banner"></div>
+
+          <div class="office-actions-bar">
+            <button type="button" class="up-buy-btn" id="btn-save-now">💾 Lưu game ngay</button>
+            <button type="button" class="up-buy-btn btn-blue" id="btn-end-day">🌙 Kết thúc ngày</button>
+            <button type="button" class="up-buy-btn btn-neutral" data-jump-tab="bank">🏦 Ngân hàng</button>
+            <button type="button" class="up-buy-btn btn-neutral" data-jump-tab="staff">👥 Nhân viên</button>
+            <button type="button" class="up-buy-btn btn-neutral" id="btn-office-assets">🖼️ Kiểm tra Asset</button>
+            <button type="button" class="up-buy-btn btn-danger" id="btn-reset">🔄 Chơi lại từ đầu</button>
+          </div>
+
+          <div class="section-heading">🗺️ Thư viện 6 khu vực Trung tâm</div>
+          <div class="zone-gallery-grid" id="zone-gallery-grid">
+            <button type="button" class="zone-thumb-card" data-jump-zone="receiving">
+              <img src="assets/zone-nhap-hang.png" alt="Khu 1: Nhập hàng" />
+              <span>1. Nhập hàng</span>
+            </button>
+            <button type="button" class="zone-thumb-card" data-jump-zone="shelves">
+              <img src="assets/zone-kho.png" alt="Khu 2: Kho Kệ hàng" />
+              <span>2. Kho Kệ hàng</span>
+            </button>
+            <button type="button" class="zone-thumb-card" data-jump-zone="packing">
+              <img src="assets/zone-dong-goi.png" alt="Khu 3: Đóng gói" />
+              <span>3. Đóng gói</span>
+            </button>
+            <button type="button" class="zone-thumb-card" data-jump-zone="dispatch">
+              <img src="assets/zone-giao-hang.png" alt="Khu 4: Giao hàng" />
+              <span>4. Giao hàng</span>
+            </button>
+            <button type="button" class="zone-thumb-card" data-jump-zone="office">
+              <img src="assets/zone-van-phong.png" alt="Khu 5: Văn phòng" />
+              <span>5. Văn phòng</span>
+            </button>
+            <button type="button" class="zone-thumb-card" data-jump-zone="orders">
+              <img src="assets/zone-quay-don.png" alt="Khu 6: Quầy Đơn hàng" />
+              <span>6. Quầy Đơn hàng</span>
+            </button>
+          </div>
+
+          <div class="section-heading">📜 Nhật ký vận hành</div>
+          <div class="office-log-box">
+            <ul id="event-log"></ul>
+          </div>
+        </div>
       </div>
-      <ul id="event-log"></ul>
-    </div>
+    </aside>
+
+    <!-- 6. TOAST THÔNG BÁO NHANH -->
+    <div id="toast" class="hud-wood toast hidden" role="status" aria-live="polite">Thông báo</div>
 
     <!-- Modal Tổng kết ngày -->
-    <div id="summary-modal" class="modal hidden">
+    <div id="summary-modal" class="modal hidden" role="dialog" aria-modal="true">
       <div class="modal-card">
         <div class="modal-head">
           <h3>🌙 Tổng kết Ngày <span id="sum-day">1</span></h3>
         </div>
         <div id="summary-body" class="summary-list"></div>
-        <button id="btn-next-day" class="game-btn btn-teal full-btn">☀️ Sang ngày mới</button>
+        <button type="button" id="btn-next-day" class="up-buy-btn btn-blue full-btn">☀️ Sang ngày mới</button>
       </div>
     </div>
 
     <!-- Modal Phá sản (2 nút — KHÔNG xóa save) -->
-    <div id="bankrupt-modal" class="modal hidden">
+    <div id="bankrupt-modal" class="modal hidden" role="dialog" aria-modal="true">
       <div class="modal-card">
         <div class="modal-head">
-          <h3 style="color:#c2410c;">💥 PHÁ SẢN — KHÔNG ĐỦ TRẢ CHI PHÍ CỐ ĐỊNH</h3>
+          <h3 style="color:#DC2626;">💥 PHÁ SẢN — KHÔNG ĐỦ TRẢ CHI PHÍ CỐ ĐỊNH</h3>
         </div>
         <div id="bankrupt-body" class="summary-list"></div>
         <div class="modal-btn-row">
-          <button id="btn-reload-last-save" class="game-btn btn-teal full-btn">📂 Chơi lại từ lần lưu gần nhất</button>
-          <button id="btn-restart-bankrupt" class="game-btn btn-orange full-btn">🔄 Bắt đầu lại từ đầu</button>
+          <button type="button" id="btn-reload-last-save" class="up-buy-btn btn-blue full-btn">📂 Chơi lại từ lần lưu gần nhất</button>
+          <button type="button" id="btn-restart-bankrupt" class="up-buy-btn btn-amber full-btn">🔄 Bắt đầu lại từ đầu</button>
         </div>
       </div>
     </div>
 
     <!-- Modal Kiểm tra Asset -->
-    <div id="asset-modal" class="modal hidden">
+    <div id="asset-modal" class="modal hidden" role="dialog" aria-modal="true">
       <div class="modal-card wide-modal">
         <div class="modal-head">
-          <h3>🖼️ Trạng thái 46 Asset (14 gốc + 6 sản phẩm + 26 khung hình)</h3>
-          <button class="util-btn btn-wood" id="btn-close-asset">✕</button>
+          <h3>🖼️ Trạng thái 52 Asset (7 ảnh hub/khu mới + 13 gốc + 6 sản phẩm + 26 khung hình)</h3>
+          <button type="button" class="up-close-btn dark-close" id="btn-close-asset" aria-label="Đóng">✕</button>
         </div>
         <div id="asset-list" class="asset-grid"></div>
       </div>

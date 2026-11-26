@@ -1,4 +1,4 @@
-const CACHE_NAME = 'logistic-center-cache-v1.3';
+const CACHE_NAME = 'logistic-center-cache-v1.4';
 const CORE_ASSETS = [
   './',
   './index.html',
@@ -9,7 +9,13 @@ const CORE_ASSETS = [
   './js/entities.js',
   './js/scene6zones.js',
   './js/game.js',
-  './assets/scene-bg.png'
+  './assets/hub-scene.png',
+  './assets/zone-nhap-hang.png',
+  './assets/zone-kho.png',
+  './assets/zone-dong-goi.png',
+  './assets/zone-giao-hang.png',
+  './assets/zone-van-phong.png',
+  './assets/zone-quay-don.png'
 ];
 
 self.addEventListener('install', (event) => {
