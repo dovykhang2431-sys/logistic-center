@@ -1,4 +1,4 @@
-const CACHE_NAME = 'logistic-center-cache-v1.0.2';
+const CACHE_NAME = 'logistic-center-cache-v1.1';
 const CORE_ASSETS = [
   './',
   './index.html',

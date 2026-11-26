@@ -1,7 +1,11 @@
 /**
- * Logistic Center — Phase 1 (v1.0)
- * Giao diện Cute 3D Cartoon Isometric Dollhouse theo ảnh mẫu đã duyệt.
- * Giữ nguyên toàn bộ bản sửa lỗi fix1 + toàn bộ luật chơi Phase 1.
+ * Logistic Center — Phase 2 (v1.1): Tài chính & Nhà cung cấp
+ * Nền tảng v1.0.2 + 5 tính năng Phase 2:
+ * 1. 3 Nhà cung cấp (Kho Sỉ Chợ Lớn, Giao Nhanh 247, Siêu Tốc Express) + chiết khấu + trễ 10%
+ * 2. Ngân hàng (vay vốn hạn mức động, lãi 1%/ngày, trả tối thiểu, tiết kiệm 0.2%/ngày)
+ * 3. Phá sản hoàn thiện (vay khẩn cấp tự động, không xóa save, 2 nút khôi phục/chơi lại)
+ * 4. Kho dự trữ (reserve) & Châm hàng lên kệ (sức chứa 12/món, FEFO, HSD cả ở reserve)
+ * 5. Soạn theo lô (batch picking) + hiển thị HSD gần nhất & cảnh báo sắp hết hạn
  */
 class LogisticCenterGame {
   constructor() {
@@ -18,6 +22,7 @@ class LogisticCenterGame {
     this.selectedPackedIds = new Set();
     this.selectedVehicleType = 'bike';
     this.selectedZoneId = 'zone1';
+    this.selectedSupplierId = 'fast247';
 
     this.paused = false;
     this.speedMultiplier = 1;
@@ -42,6 +47,12 @@ class LogisticCenterGame {
     this.registerPWA();
   }
 
+  createEmptyReserve() {
+    const res = {};
+    for (const p of PRODUCTS) res[p.id] = [];
+    return res;
+  }
+
   createInitialState() {
     return {
       version: VERSION,
@@ -61,6 +72,10 @@ class LogisticCenterGame {
         beverage: [{ qty: 6, daysLeft: 5 }],
         frozen: []
       },
+      // Phase 2: Kho dự trữ (cùng cấu trúc batch {qty, daysLeft})
+      reserve: this.createEmptyReserve(),
+      // Phase 2: Ngân hàng
+      bank: { loan: 0, savings: 0 },
       supplies: { box: 12, tape: 12, coldBag: 4 },
       pendingDeliveries: [],
       packingTables: [
@@ -96,14 +111,13 @@ class LogisticCenterGame {
       this.spawnOrder();
     }
 
-    // Hiện thông báo đang tải ảnh cảnh chính (chỉ chờ 8 ảnh cảnh chính, không chờ 26 frame animation)
     const loadingEl = document.getElementById('loading-overlay');
     if (this.assets.isLoadingPrimary()) loadingEl.classList.remove('hidden');
 
     this.lastTime = performance.now();
     requestAnimationFrame((t) => this.loop(t));
 
-    // Bước 1: Tải ưu tiên 8 ảnh cảnh kho chính + 6 icon sản phẩm để cảnh hiện ngay sau vài giây đầu
+    // Bước 1: Tải ưu tiên 8 ảnh cảnh kho chính + 6 icon sản phẩm
     this.assets.loadPrimary(() => {
       if (!this.assets.isLoadingPrimary()) {
         loadingEl.classList.add('hidden');
@@ -113,7 +127,7 @@ class LogisticCenterGame {
       loadingEl.classList.add('hidden');
       this.renderAllUI();
       this.renderAssetModal();
-      // Bước 2: Lazy-load 26 khung hình animation ở nền sau khi cảnh kho đã hiển thị
+      // Bước 2: Lazy-load 26 khung hình animation ở nền
       this.assets.loadSecondary(() => {
         this.renderAssetModal();
       });
@@ -126,10 +140,11 @@ class LogisticCenterGame {
     }
   }
 
-  // ===== LƯU / TẢI LOCALSTORAGE ("logistic-center-v1") =====
+  // ===== LƯU / TẢI LOCALSTORAGE ("logistic-center-v1") — TƯƠNG THÍCH SAVE CŨ v1.0.2 =====
   saveGame(reason = '') {
     if (this.bankrupt) return;
     try {
+      this.state.version = VERSION;
       localStorage.setItem(SAVE_KEY, JSON.stringify(this.state));
       if (reason) this.log(`💾 Đã tự lưu game (${reason}).`);
     } catch (e) {
@@ -140,10 +155,47 @@ class LogisticCenterGame {
   loadGame() {
     try {
       const raw = localStorage.getItem(SAVE_KEY);
-      if (!raw) return;
+      if (!raw) return false;
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed.money === 'number' && typeof parsed.day === 'number') {
-        this.state = { ...this.createInitialState(), ...parsed };
+        const base = this.createInitialState();
+        this.state = { ...base, ...parsed };
+
+        // Tương thích save cũ (v1.0.2): bổ sung bank & reserve mặc định, giữ nguyên hàng trên kệ
+        this.state.bank = {
+          loan: Number(parsed.bank?.loan) || 0,
+          savings: Number(parsed.bank?.savings) || 0
+        };
+        const mergedReserve = this.createEmptyReserve();
+        if (parsed.reserve && typeof parsed.reserve === 'object') {
+          for (const p of PRODUCTS) {
+            if (Array.isArray(parsed.reserve[p.id])) {
+              mergedReserve[p.id] = parsed.reserve[p.id];
+            }
+          }
+        }
+        this.state.reserve = mergedReserve;
+
+        const mergedInv = {};
+        for (const p of PRODUCTS) {
+          mergedInv[p.id] = Array.isArray(parsed.inventory?.[p.id]) ? parsed.inventory[p.id] : [];
+        }
+        this.state.inventory = mergedInv;
+
+        // Nâng cấp pendingDeliveries cũ (nếu chỉ có {productId, qty})
+        if (Array.isArray(this.state.pendingDeliveries)) {
+          this.state.pendingDeliveries = this.state.pendingDeliveries.map((d) => ({
+            productId: d.productId,
+            qty: d.qty,
+            supplierId: d.supplierId || 'fast247',
+            arriveDay: typeof d.arriveDay === 'number' ? d.arriveDay : this.state.day + 1,
+            arriveHour: typeof d.arriveHour === 'number' ? d.arriveHour : 8,
+            delayChecked: Boolean(d.delayChecked)
+          }));
+        } else {
+          this.state.pendingDeliveries = [];
+        }
+
         // Ân hạn tối thiểu 30 giây cho các đơn đang chờ sau khi tải lại trang
         if (Array.isArray(this.state.orders)) {
           this.state.orders.forEach((o) => {
@@ -152,11 +204,36 @@ class LogisticCenterGame {
             }
           });
         }
+        this.state.version = VERSION;
         this.log(`📂 Đã tải dữ liệu lưu (Ngày ${this.state.day}, $${this.state.money}).`);
+        return true;
       }
     } catch (e) {
       console.warn('Tải save lỗi, dùng trạng thái mới:', e);
     }
+    return false;
+  }
+
+  reloadFromLastSave() {
+    const loaded = this.loadGame();
+    if (!loaded) {
+      alert('Chưa có bản lưu trước đó. Game sẽ bắt đầu lại từ đầu.');
+      this.resetGame();
+      return;
+    }
+    this.bankrupt = false;
+    this.summaryOpen = false;
+    this.paused = false;
+    this.activeVehicles = [];
+    this.selectedPackedIds.clear();
+    this.speedMultiplier = this.state.speedMultiplier || 1;
+    document.getElementById('btn-speed').textContent = `⏩ ${this.speedMultiplier}x`;
+    document.getElementById('btn-pause').textContent = '⏸';
+    document.getElementById('bankrupt-modal').classList.add('hidden');
+    document.getElementById('summary-modal').classList.add('hidden');
+    this.syncVisualStaff();
+    this.renderAllUI();
+    this.log('📂 Đã khôi phục từ lần lưu gần nhất.');
   }
 
   resetGame() {
@@ -242,9 +319,34 @@ class LogisticCenterGame {
     };
 
     document.getElementById('btn-new-order').onclick = () => this.spawnOrder();
+    document.getElementById('btn-batch-pick').onclick = () => this.batchPickOrders();
+    document.getElementById('btn-replenish-all').onclick = () => this.replenishAllShelves();
     document.getElementById('btn-dispatch-go').onclick = () => this.dispatchSelectedOrders();
     document.getElementById('btn-next-day').onclick = () => this.startNextDay();
+    document.getElementById('btn-reload-last-save').onclick = () => this.reloadFromLastSave();
     document.getElementById('btn-restart-bankrupt').onclick = () => this.resetGame();
+
+    // Ngân hàng
+    document.getElementById('btn-borrow').onclick = () => {
+      const inp = document.getElementById('input-loan-amount');
+      this.borrowMoney(Number(inp.value));
+      inp.value = '';
+    };
+    document.getElementById('btn-repay').onclick = () => {
+      const inp = document.getElementById('input-repay-amount');
+      this.repayLoan(Number(inp.value));
+      inp.value = '';
+    };
+    document.getElementById('btn-deposit').onclick = () => {
+      const inp = document.getElementById('input-savings-amount');
+      this.depositSavings(Number(inp.value));
+      inp.value = '';
+    };
+    document.getElementById('btn-withdraw').onclick = () => {
+      const inp = document.getElementById('input-savings-amount');
+      this.withdrawSavings(Number(inp.value));
+      inp.value = '';
+    };
 
     window.addEventListener('beforeunload', () => this.saveGame());
     document.addEventListener('visibilitychange', () => {
@@ -252,17 +354,30 @@ class LogisticCenterGame {
     });
   }
 
-  // ===== KHO & HẠN SỬ DỤNG =====
+  // ===== GIỜ GAME HIỆN TẠI (8.0 -> 20.0) =====
+  getGameHour() {
+    const progress = Math.min(1, this.state.dayElapsed / GAME_CONFIG.dayDurationSec);
+    return 8 + progress * 12;
+  }
+
+  // ===== KHO KỆ, KHO DỰ TRỮ (RESERVE) & HẠN SỬ DỤNG =====
   getStockCount(productId) {
     return (this.state.inventory[productId] || []).reduce((s, b) => s + b.qty, 0);
   }
 
-  getMinShelfLife(productId) {
-    const batches = (this.state.inventory[productId] || []).filter((b) => b.qty > 0 && b.daysLeft !== null);
-    if (batches.length === 0) return null;
-    return Math.min(...batches.map((b) => b.daysLeft));
+  getReserveCount(productId) {
+    return (this.state.reserve[productId] || []).reduce((s, b) => s + b.qty, 0);
   }
 
+  getMinShelfLife(productId) {
+    const shelfBatches = (this.state.inventory[productId] || []).filter((b) => b.qty > 0 && b.daysLeft !== null);
+    const reserveBatches = (this.state.reserve[productId] || []).filter((b) => b.qty > 0 && b.daysLeft !== null);
+    const all = [...shelfBatches, ...reserveBatches];
+    if (all.length === 0) return null;
+    return Math.min(...all.map((b) => b.daysLeft));
+  }
+
+  // GIỮ NGUYÊN FEFO consumeStock()
   consumeStock(productId, qty = 1) {
     const batches = this.state.inventory[productId] || [];
     batches.sort((a, b) => (a.daysLeft ?? 999) - (b.daysLeft ?? 999));
@@ -277,7 +392,78 @@ class LogisticCenterGame {
     return remain === 0;
   }
 
-  // ===== ĐƠN HÀNG (130s THƯỜNG / 75s GẤP) =====
+  // Phase 2: Châm hàng từ kho dự trữ lên kệ (tối đa 12/món, lấy batch gần hết hạn trước)
+  replenishShelf(productId, silent = false) {
+    const prod = PRODUCTS.find((p) => p.id === productId);
+    if (!prod) return 0;
+    if (prod.cold && this.state.level < GAME_CONFIG.unlocks.coldShelfLevel) {
+      if (!silent) this.log(`🔒 Cần đạt Cấp ${GAME_CONFIG.unlocks.coldShelfLevel} để dùng Kệ lạnh.`);
+      return 0;
+    }
+
+    const reserveQty = this.getReserveCount(productId);
+    if (reserveQty <= 0) {
+      if (!silent) {
+        this.log(`⚠️ Kho dự trữ trống (${prod.name}).`);
+        alert('Kho dự trữ trống.');
+      }
+      return 0;
+    }
+
+    const currentShelf = this.getStockCount(productId);
+    const space = GAME_CONFIG.shelfCapacity - currentShelf;
+    if (space <= 0) {
+      if (!silent) this.log(`ℹ️ Kệ ${prod.name} đã đầy (${GAME_CONFIG.shelfCapacity}/${GAME_CONFIG.shelfCapacity}).`);
+      return 0;
+    }
+
+    const resBatches = this.state.reserve[productId] || [];
+    resBatches.sort((a, b) => (a.daysLeft ?? 999) - (b.daysLeft ?? 999));
+
+    let moved = 0;
+    for (const batch of resBatches) {
+      if (moved >= space) break;
+      const take = Math.min(batch.qty, space - moved);
+      if (take > 0) {
+        batch.qty -= take;
+        moved += take;
+        this.state.inventory[productId].push({ qty: take, daysLeft: batch.daysLeft });
+      }
+    }
+    this.state.reserve[productId] = resBatches.filter((b) => b.qty > 0);
+
+    if (!silent && moved > 0) {
+      this.log(`📥 Đã châm ${moved} ${prod.name} lên kệ (${this.getStockCount(productId)}/${GAME_CONFIG.shelfCapacity}).`);
+      this.renderAllUI();
+    }
+    return moved;
+  }
+
+  replenishAllShelves() {
+    let totalMoved = 0;
+    let totalReserveAvailable = 0;
+    const coldUnlocked = this.state.level >= GAME_CONFIG.unlocks.coldShelfLevel;
+
+    for (const p of PRODUCTS) {
+      if (p.cold && !coldUnlocked) continue;
+      totalReserveAvailable += this.getReserveCount(p.id);
+      totalMoved += this.replenishShelf(p.id, true);
+    }
+
+    if (totalReserveAvailable === 0) {
+      this.log('⚠️ Kho dự trữ trống.');
+      alert('Kho dự trữ trống.');
+      return;
+    }
+    if (totalMoved === 0) {
+      this.log(`ℹ️ Tất cả các kệ có hàng dự trữ đều đã đầy (${GAME_CONFIG.shelfCapacity}/${GAME_CONFIG.shelfCapacity}).`);
+      return;
+    }
+    this.log(`📥 Đã châm tất cả: +${totalMoved} sp từ kho dự trữ lên kệ.`);
+    this.renderAllUI();
+  }
+
+  // ===== ĐƠN HÀNG (260s THƯỜNG / 150s GẤP) =====
   spawnOrder() {
     if (this.state.orders.length >= 8) return;
     const coldUnlocked = this.state.level >= GAME_CONFIG.unlocks.coldShelfLevel;
@@ -328,7 +514,7 @@ class LogisticCenterGame {
     this.renderAllUI();
   }
 
-  // ===== SOẠN HÀNG =====
+  // ===== SOẠN HÀNG TỪNG MÓN & SOẠN THEO LÔ (BATCH PICKING) =====
   pickFromShelf(productId) {
     const order = this.state.orders.find((o) => o.id === this.selectedOrderId && o.status === 'picking');
     if (!order) {
@@ -341,7 +527,7 @@ class LogisticCenterGame {
       return;
     }
     if (this.getStockCount(productId) <= 0) {
-      this.log('⚠️ Hết hàng trên kệ! Đặt thêm ở tab Nhà cung cấp.');
+      this.log('⚠️ Hết hàng trên kệ! Hãy Châm hàng từ kho dự trữ hoặc đặt mua ở tab Nhà cung cấp.');
       return;
     }
 
@@ -353,6 +539,42 @@ class LogisticCenterGame {
       order.status = 'ready_to_pack';
       this.log(`✅ Đơn #${order.id} đã soạn đủ hàng! Chuyển sang tab Đóng gói.`);
     }
+    this.renderAllUI();
+  }
+
+  batchPickOrders() {
+    const pickingOrders = this.state.orders
+      .filter((o) => o.status === 'picking')
+      .sort((a, b) => a.id - b.id);
+
+    if (pickingOrders.length === 0) {
+      this.log('ℹ️ Không có đơn nào đang chờ soạn.');
+      return;
+    }
+
+    let completedCount = 0;
+    let shortageCount = 0;
+
+    for (const order of pickingOrders) {
+      for (const item of order.items) {
+        const need = item.qty - item.picked;
+        if (need <= 0) continue;
+        const avail = this.getStockCount(item.productId);
+        const take = Math.min(need, avail);
+        if (take > 0) {
+          this.consumeStock(item.productId, take);
+          item.picked += take;
+        }
+      }
+      if (order.items.every((it) => it.picked >= it.qty)) {
+        order.status = 'ready_to_pack';
+        completedCount += 1;
+      } else {
+        shortageCount += 1;
+      }
+    }
+
+    this.log(`⚡ Đã soạn xong ${completedCount} đơn, ${shortageCount} đơn thiếu hàng.`);
     this.renderAllUI();
   }
 
@@ -390,24 +612,119 @@ class LogisticCenterGame {
     this.renderAllUI();
   }
 
-  // ===== NHÀ CUNG CẤP =====
-  buyProductFromSupplier(productId, qty = 5) {
+  // ===== 3 NHÀ CUNG CẤP + CHIẾT KHẤU + GIAO TRỄ =====
+  getBulkDiscount(qty) {
+    if (qty >= 20) return 0.10;
+    if (qty >= 10) return 0.05;
+    return 0;
+  }
+
+  getSupplierUnitPrice(prod, supplier) {
+    return Number((prod.buyPrice * supplier.priceMult).toFixed(2));
+  }
+
+  getSupplierOrderCost(prod, supplier, qty) {
+    const discount = this.getBulkDiscount(qty);
+    return Math.round(prod.buyPrice * supplier.priceMult * qty * (1 - discount));
+  }
+
+  buyProductFromSupplier(productId, qty = 5, supplierId = this.selectedSupplierId) {
     const prod = PRODUCTS.find((p) => p.id === productId);
-    if (!prod) return;
+    const supplier = SUPPLIERS.find((s) => s.id === supplierId);
+    if (!prod || !supplier) return;
+
+    if (!supplier.products.includes(productId)) {
+      this.log(`❌ ${supplier.name} không bán ${prod.name}.`);
+      return;
+    }
     if (prod.cold && this.state.level < GAME_CONFIG.unlocks.coldShelfLevel) {
       this.log(`🔒 Cần đạt Cấp ${GAME_CONFIG.unlocks.coldShelfLevel} để mở khóa Kệ lạnh.`);
       return;
     }
-    const cost = prod.buyPrice * qty;
+
+    const cost = this.getSupplierOrderCost(prod, supplier, qty);
     if (this.state.money < cost) {
-      this.log(`💸 Không đủ tiền đặt ${qty} ${prod.name} (cần $${cost}).`);
+      this.log(`💸 Không đủ tiền đặt ${qty} ${prod.name} tại ${supplier.name} (cần $${cost}).`);
       return;
     }
+
     this.state.money -= cost;
     this.state.dayStats.purchaseCost += cost;
-    this.state.pendingDeliveries.push({ productId, qty });
-    this.log(`🛒 Đã đặt ${qty} ${prod.name} (-$${cost}). Hàng về sáng mai.`);
+
+    // Nhà C: Giao ngay lập tức vào Kho dự trữ, không bao giờ trễ
+    if (supplier.id === 'express') {
+      this.state.reserve[productId].push({ qty, daysLeft: prod.shelfLife });
+      this.log(`⚡ ${supplier.name} đã giao ngay ${qty} ${prod.name} vào Kho dự trữ (-$${cost}).`);
+      this.renderAllUI();
+      return;
+    }
+
+    let arriveDay = this.state.day + 1;
+    let arriveHour = 8;
+    if (supplier.id === 'wholesaler') {
+      // Nhà A: sáng ngày thứ 2 sau ngày đặt (đặt Ngày 1 -> về sáng Ngày 3)
+      arriveDay = this.state.day + 2;
+      arriveHour = 8;
+    } else if (supplier.id === 'fast247') {
+      // Nhà B: đặt trước 12:00 về 14:00 cùng ngày; sau 12:00 về 14:00 hôm sau
+      arriveDay = this.getGameHour() < 12 ? this.state.day : this.state.day + 1;
+      arriveHour = 14;
+    }
+
+    this.state.pendingDeliveries.push({
+      productId,
+      qty,
+      supplierId: supplier.id,
+      arriveDay,
+      arriveHour,
+      delayChecked: false
+    });
+
+    const timeStr = `${String(arriveHour).padStart(2, '0')}:00 Ngày ${arriveDay}`;
+    this.log(`🛒 Đặt ${qty} ${prod.name} tại ${supplier.name} (-$${cost}). Dự kiến về Kho dự trữ lúc ${timeStr}.`);
     this.renderAllUI();
+  }
+
+  processDueDeliveries() {
+    if (this.state.pendingDeliveries.length === 0) return false;
+    const currentHour = this.getGameHour();
+    const remaining = [];
+    let changed = false;
+
+    for (const del of this.state.pendingDeliveries) {
+      const isDue = del.arriveDay < this.state.day ||
+        (del.arriveDay === this.state.day && currentHour >= del.arriveHour);
+
+      if (!isDue) {
+        remaining.push(del);
+        continue;
+      }
+
+      const prod = PRODUCTS.find((p) => p.id === del.productId);
+      const supplier = SUPPLIERS.find((s) => s.id === del.supplierId);
+
+      // Kiểm tra 10% giao trễ 1 ngày cho Nhà A và Nhà B (chỉ kiểm tra 1 lần mỗi chuyến)
+      if (!del.delayChecked && supplier && supplier.delayChance > 0) {
+        del.delayChecked = true;
+        if (Math.random() < supplier.delayChance) {
+          del.arriveDay += 1;
+          this.log(`⚠️ Nhà cung cấp ${supplier.name} giao trễ 1 ngày (${prod ? prod.name : del.productId} ×${del.qty} → Ngày ${del.arriveDay}).`);
+          remaining.push(del);
+          changed = true;
+          continue;
+        }
+      }
+
+      // Giao vào KHO DỰ TRỮ (reserve)
+      if (prod) {
+        this.state.reserve[del.productId].push({ qty: del.qty, daysLeft: prod.shelfLife });
+        this.log(`🚚 ${supplier ? supplier.name : 'Nhà cung cấp'} đã giao ${del.qty} ${prod.name} vào Kho dự trữ.`);
+      }
+      changed = true;
+    }
+
+    this.state.pendingDeliveries = remaining;
+    return changed;
   }
 
   buySupply(supplyId, qty = 5) {
@@ -421,6 +738,95 @@ class LogisticCenterGame {
     this.state.dayStats.purchaseCost += cost;
     this.state.supplies[supplyId] += qty;
     this.log(`🛒 Đã mua ${qty} ${sup.name} (-$${cost}).`);
+    this.renderAllUI();
+  }
+
+  // ===== NGÂN HÀNG (VAY VỐN & TIẾT KIỆM) =====
+  getCreditLimit() {
+    const b = GAME_CONFIG.bank;
+    return b.baseLimit + this.state.reputation * b.repMultiplier + (this.state.level - 1) * b.levelMultiplier;
+  }
+
+  getMinDailyRepayment() {
+    const loan = this.state.bank.loan;
+    if (loan <= 0) return 0;
+    const b = GAME_CONFIG.bank;
+    return Math.min(loan, Math.max(b.minRepayFlat, Math.round(loan * b.minRepayRate)));
+  }
+
+  borrowMoney(rawAmount) {
+    const amount = Math.floor(Number(rawAmount));
+    const maxBorrow = Math.max(0, this.getCreditLimit() - this.state.bank.loan);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      alert('Vui lòng nhập số tiền vay hợp lệ (> 0).');
+      return;
+    }
+    if (maxBorrow <= 0) {
+      alert('Bạn đã chạm hạn mức vay tối đa.');
+      return;
+    }
+    const actual = Math.min(amount, maxBorrow);
+    this.state.money += actual;
+    this.state.bank.loan += actual;
+    this.log(`🏦 Đã vay ngân hàng $${actual.toLocaleString()} (Dư nợ: $${this.state.bank.loan.toLocaleString()}).`);
+    this.saveGame();
+    this.renderAllUI();
+  }
+
+  repayLoan(rawAmount) {
+    const amount = Math.floor(Number(rawAmount));
+    if (this.state.bank.loan <= 0) {
+      alert('Bạn hiện không có dư nợ vay.');
+      return;
+    }
+    if (!Number.isFinite(amount) || amount <= 0) {
+      alert('Vui lòng nhập số tiền trả nợ hợp lệ (> 0).');
+      return;
+    }
+    const maxPay = Math.min(this.state.money, this.state.bank.loan);
+    if (maxPay <= 0) {
+      alert('Không đủ tiền mặt để trả nợ.');
+      return;
+    }
+    const actual = Math.min(amount, maxPay);
+    this.state.money -= actual;
+    this.state.bank.loan -= actual;
+    this.log(`🏦 Đã trả nợ ngân hàng $${actual.toLocaleString()} (Còn nợ: $${this.state.bank.loan.toLocaleString()}).`);
+    this.saveGame();
+    this.renderAllUI();
+  }
+
+  depositSavings(rawAmount) {
+    const amount = Math.floor(Number(rawAmount));
+    if (!Number.isFinite(amount) || amount <= 0) {
+      alert('Vui lòng nhập số tiền gửi hợp lệ (> 0).');
+      return;
+    }
+    if (amount > this.state.money) {
+      alert(`Không đủ tiền mặt (hiện có $${this.state.money.toLocaleString()}).`);
+      return;
+    }
+    this.state.money -= amount;
+    this.state.bank.savings += amount;
+    this.log(`🐷 Đã gửi tiết kiệm $${amount.toLocaleString()} (Số dư TK: $${this.state.bank.savings.toLocaleString()}).`);
+    this.saveGame();
+    this.renderAllUI();
+  }
+
+  withdrawSavings(rawAmount) {
+    const amount = Math.floor(Number(rawAmount));
+    if (!Number.isFinite(amount) || amount <= 0) {
+      alert('Vui lòng nhập số tiền rút hợp lệ (> 0).');
+      return;
+    }
+    if (amount > this.state.bank.savings) {
+      alert(`Số dư tiết kiệm không đủ (hiện có $${this.state.bank.savings.toLocaleString()}).`);
+      return;
+    }
+    this.state.bank.savings -= amount;
+    this.state.money += amount;
+    this.log(`🐷 Đã rút tiết kiệm $${amount.toLocaleString()} (Còn lại: $${this.state.bank.savings.toLocaleString()}).`);
+    this.saveGame();
     this.renderAllUI();
   }
 
@@ -565,7 +971,7 @@ class LogisticCenterGame {
     this.renderAllUI();
   }
 
-  // ===== TỔNG KẾT NGÀY & PHÁ SẢN =====
+  // ===== TỔNG KẾT NGÀY, LÃI NGÂN HÀNG, HSD KỆ + RESERVE & PHÁ SẢN HOÀN THIỆN =====
   openDaySummary() {
     this.summaryOpen = true;
     const totalVehicles = this.state.fleet.bike + this.state.fleet.truckSmall + this.state.fleet.truckLarge;
@@ -578,55 +984,108 @@ class LogisticCenterGame {
       this.state.staff.workers * GAME_CONFIG.staff.workerDailyWage +
       this.state.staff.drivers * GAME_CONFIG.staff.driverDailyWage;
 
+    // Trừ HSD cho cả KỆ (inventory) và KHO DỰ TRỮ (reserve)
     let expiredCount = 0;
+    const decayBatches = (batches) => {
+      const next = [];
+      for (const batch of batches) {
+        batch.daysLeft -= 1;
+        if (batch.daysLeft <= 0) {
+          expiredCount += batch.qty;
+        } else {
+          next.push(batch);
+        }
+      }
+      return next;
+    };
     for (const prod of PRODUCTS) {
       if (prod.shelfLife !== null) {
-        const nextBatches = [];
-        for (const batch of this.state.inventory[prod.id]) {
-          batch.daysLeft -= 1;
-          if (batch.daysLeft <= 0) {
-            expiredCount += batch.qty;
-          } else {
-            nextBatches.push(batch);
-          }
-        }
-        this.state.inventory[prod.id] = nextBatches;
+        this.state.inventory[prod.id] = decayBatches(this.state.inventory[prod.id] || []);
+        this.state.reserve[prod.id] = decayBatches(this.state.reserve[prod.id] || []);
       }
     }
     this.state.dayStats.expiredItems = expiredCount;
 
-    const totalDue = fixedTotal + wages;
+    // 1. Cộng lãi tiết kiệm (0.2%/ngày)
+    const savingsInterest = Math.round(this.state.bank.savings * GAME_CONFIG.bank.savingsInterestRate);
+    this.state.money += savingsInterest;
+
+    // 2. Kiểm tra chi phí cố định & vay khẩn cấp tự động
+    let emergencyLoan = 0;
     if (this.state.money < fixedTotal) {
-      this.bankrupt = true;
-      localStorage.removeItem(SAVE_KEY);
-      document.getElementById('bankrupt-body').innerHTML = `
-        <p>Cuối Ngày ${this.state.day}, bạn chỉ còn <strong>$${this.state.money}</strong> nhưng chi phí cố định bắt buộc là <strong>$${fixedTotal}</strong> (Thuê kho $${rent} + Điện nước $${utilities} + Bảo hiểm $${insurance}).</p>
-        <p>Trung tâm không thể thanh toán chi phí cố định và đã phá sản.</p>
-      `;
-      document.getElementById('bankrupt-modal').classList.remove('hidden');
-      return;
+      const shortfall = fixedTotal - this.state.money;
+      const remainingLimit = Math.max(0, this.getCreditLimit() - this.state.bank.loan);
+      const canBorrow = Math.min(shortfall, remainingLimit);
+
+      if (this.state.money + canBorrow < fixedTotal) {
+        // PHÁ SẢN — KHÔNG XÓA SAVE!
+        this.bankrupt = true;
+        document.getElementById('bankrupt-body').innerHTML = `
+          <p>Cuối Ngày ${this.state.day}, bạn có <strong>$${this.state.money.toLocaleString()}</strong> (hạn mức vay còn lại <strong>$${remainingLimit.toLocaleString()}</strong>) nhưng chi phí cố định bắt buộc là <strong>$${fixedTotal.toLocaleString()}</strong> (Thuê kho $${rent} + Điện nước $${utilities} + Bảo hiểm $${insurance}).</p>
+          <p>Ngay cả khi vay khẩn cấp tối đa, trung tâm vẫn không đủ thanh toán chi phí cố định.</p>
+          <p><em>Dữ liệu lưu gần nhất của bạn vẫn được giữ nguyên.</em></p>
+        `;
+        document.getElementById('bankrupt-modal').classList.remove('hidden');
+        return;
+      }
+
+      emergencyLoan = canBorrow;
+      this.state.bank.loan += emergencyLoan;
+      this.state.money += emergencyLoan;
+      this.log(`🏦 Ngân hàng tự cho vay khẩn cấp $${emergencyLoan.toLocaleString()} để trả chi phí cố định.`);
     }
 
-    this.state.money -= totalDue;
+    // 3. Tính lãi vay (1%/ngày) và trừ chi phí cố định + lương + lãi vay
+    const loanInterest = Math.round(this.state.bank.loan * GAME_CONFIG.bank.loanInterestRate);
+    const totalMandatory = fixedTotal + wages + loanInterest;
+    this.state.money -= totalMandatory;
     if (this.state.money < 0) this.state.money = 0;
+
+    // 4. Trả nợ tối thiểu: max($50, 5% dư nợ) nếu đủ tiền, không đủ thì hoãn sang hôm sau
+    let actualMinRepay = 0;
+    let deferredMinRepay = 0;
+    if (this.state.bank.loan > 0) {
+      const reqMinRepay = this.getMinDailyRepayment();
+      if (this.state.money >= reqMinRepay) {
+        this.state.money -= reqMinRepay;
+        this.state.bank.loan -= reqMinRepay;
+        actualMinRepay = reqMinRepay;
+      } else {
+        deferredMinRepay = reqMinRepay;
+        this.log(`⚠️ Không đủ tiền trả nợ tối thiểu ($${reqMinRepay}) — hoãn sang ngày mai.`);
+      }
+    }
 
     const avgStar = this.state.dayStats.ratings.length
       ? (this.state.dayStats.ratings.reduce((a, b) => a + b, 0) / this.state.dayStats.ratings.length).toFixed(1) + '★'
       : '—';
 
+    const emergencyRow = emergencyLoan > 0
+      ? `<div class="sum-row"><span>Vay khẩn cấp tự động</span><strong style="color:#d97706">+$${emergencyLoan.toLocaleString()}</strong></div>`
+      : '';
+    const minRepayText = deferredMinRepay > 0
+      ? `<span style="color:#c2410c">Hoãn ($${deferredMinRepay.toLocaleString()})</span>`
+      : `<span>-$${actualMinRepay.toLocaleString()}</span>`;
+
     document.getElementById('sum-day').textContent = this.state.day;
     document.getElementById('summary-body').innerHTML = `
       <div class="sum-row"><span>Đơn giao thành công / Thất bại</span><strong>${this.state.dayStats.deliveredCount} / ${this.state.dayStats.failedCount}</strong></div>
       <div class="sum-row"><span>Đánh giá trung bình</span><strong>${avgStar}</strong></div>
-      <div class="sum-row"><span>Doanh thu giao hàng</span><strong style="color:#15803d">+$${this.state.dayStats.revenue}</strong></div>
-      <div class="sum-row"><span>Tiền nhập hàng & vật tư</span><span>-$${this.state.dayStats.purchaseCost}</span></div>
-      <div class="sum-row"><span>Tiền xăng vận chuyển</span><span>-$${this.state.dayStats.fuelCost}</span></div>
-      <div class="sum-row"><span>Lương nhân viên (${this.state.staff.workers} kho, ${this.state.staff.drivers} tài xế)</span><span>-$${wages}</span></div>
-      <div class="sum-row"><span>Thuê kho ($50) + Điện nước ($20) + Bảo hiểm (${totalVehicles} xe × $10)</span><strong style="color:#c2410c">-$${fixedTotal}</strong></div>
-      <div class="sum-row"><span>Hàng hết hạn bị hủy</span><strong>${expiredCount} sp</strong></div>
-      <div class="sum-row"><span>Số dư còn lại</span><strong style="color:#0f766e">$${this.state.money}</strong></div>
+      <div class="sum-row"><span>Doanh thu giao hàng</span><strong style="color:#15803d">+$${this.state.dayStats.revenue.toLocaleString()}</strong></div>
+      <div class="sum-row"><span>Tiền nhập hàng & vật tư</span><span>-$${this.state.dayStats.purchaseCost.toLocaleString()}</span></div>
+      <div class="sum-row"><span>Tiền xăng vận chuyển</span><span>-$${this.state.dayStats.fuelCost.toLocaleString()}</span></div>
+      <div class="sum-row"><span>Lương nhân viên (${this.state.staff.workers} kho, ${this.state.staff.drivers} tài xế)</span><span>-$${wages.toLocaleString()}</span></div>
+      <div class="sum-row"><span>Thuê kho ($50) + Điện nước ($20) + Bảo hiểm (${totalVehicles} xe × $10)</span><strong style="color:#c2410c">-$${fixedTotal.toLocaleString()}</strong></div>
+      ${emergencyRow}
+      <div class="sum-row"><span>Lãi tiết kiệm (0.2%/ngày)</span><strong style="color:#15803d">+$${savingsInterest.toLocaleString()}</strong></div>
+      <div class="sum-row"><span>Lãi vay (1%/ngày)</span><span style="color:#c2410c">-$${loanInterest.toLocaleString()}</span></div>
+      <div class="sum-row"><span>Trả nợ tối thiểu</span>${minRepayText}</div>
+      <div class="sum-row"><span>Hàng hết hạn bị hủy (kệ + dự trữ)</span><strong>${expiredCount} sp</strong></div>
+      <div class="sum-row"><span>Số dư còn lại</span><strong style="color:#0f766e">$${this.state.money.toLocaleString()}</strong></div>
     `;
-    document.getElementById('stat-money').textContent = this.state.money.toLocaleString();
+
+    // Đồng bộ ngay header tiền & dư nợ khớp tuyệt đối với tổng kết ngày
+    this.updateHeaderMoneyAndDebt();
     document.getElementById('summary-modal').classList.remove('hidden');
     this.saveGame(`tổng kết Ngày ${this.state.day}`);
   }
@@ -639,16 +1098,8 @@ class LogisticCenterGame {
       deliveredCount: 0, failedCount: 0, expiredItems: 0, ratings: []
     };
 
-    if (this.state.pendingDeliveries.length > 0) {
-      let totalIn = 0;
-      for (const del of this.state.pendingDeliveries) {
-        const prod = PRODUCTS.find((p) => p.id === del.productId);
-        this.state.inventory[del.productId].push({ qty: del.qty, daysLeft: prod.shelfLife });
-        totalIn += del.qty;
-      }
-      this.state.pendingDeliveries = [];
-      this.log(`🌅 Sáng Ngày ${this.state.day}: Nhà cung cấp đã giao ${totalIn} sản phẩm lên kệ.`);
-    }
+    // Giao các chuyến hàng đến hạn vào sáng ngày mới (08:00) vào KHO DỰ TRỮ
+    this.processDueDeliveries();
 
     this.summaryOpen = false;
     document.getElementById('summary-modal').classList.add('hidden');
@@ -657,7 +1108,7 @@ class LogisticCenterGame {
     this.renderAllUI();
   }
 
-  // ===== CẬP NHẬT VÒNG LẶP GAME (GIỮ NGUYÊN CÂN BẰNG FIX1) =====
+  // ===== CẬP NHẬT VÒNG LẶP GAME =====
   updateLogic(dt) {
     if (this.paused || this.summaryOpen || this.bankrupt) return;
 
@@ -667,6 +1118,13 @@ class LogisticCenterGame {
       return;
     }
 
+    let uiDirty = false;
+
+    // Kiểm tra hàng nhà cung cấp đến hạn trong ngày (ví dụ Nhà B 14:00)
+    if (this.processDueDeliveries()) {
+      uiDirty = true;
+    }
+
     const maxActiveOrders = this.state.level <= 2 ? 3 : this.state.level <= 4 ? 4 : 5;
     this.orderSpawnTimer += dt;
     if (this.orderSpawnTimer >= 36) {
@@ -674,7 +1132,6 @@ class LogisticCenterGame {
       if (this.state.orders.length < maxActiveOrders) this.spawnOrder();
     }
 
-    let uiDirty = false;
     const expiredPenalty = this.state.level <= 2 ? 3 : 4;
     for (const order of [...this.state.orders]) {
       if (order.status === 'delivering') continue;
@@ -726,21 +1183,19 @@ class LogisticCenterGame {
     if (uiDirty) this.renderAllUI();
   }
 
-  // ===== VẼ CẢNH KHO ISOMETRIC DOLLHOUSE SÁNG ẤM (ĐÚNG ẢNH MẪU) =====
+  // ===== VẼ CẢNH KHO ISOMETRIC DOLLHOUSE =====
   drawScene() {
     const ctx = this.ctx;
     const w = this.canvas.width;
     const h = this.canvas.height;
     const progress = this.state.dayElapsed / GAME_CONFIG.dayDurationSec;
 
-    // 1. Nền kem nắng ấm bên ngoài kho
     const bgGrad = ctx.createLinearGradient(0, 0, 0, h);
     bgGrad.addColorStop(0, '#fbe9c9');
     bgGrad.addColorStop(1, '#f3d8ab');
     ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, w, h);
 
-    // 2. Đường nhựa giao hàng bên phải ngoài cửa kho
     ctx.save();
     ctx.fillStyle = '#9ca3af';
     ctx.beginPath();
@@ -759,7 +1214,6 @@ class LogisticCenterGame {
     ctx.stroke();
     ctx.restore();
 
-    // 3. Sàn gạch isometric dollhouse bên trong kho
     ctx.save();
     ctx.fillStyle = '#fff5e4';
     ctx.strokeStyle = '#9c6635';
@@ -773,7 +1227,6 @@ class LogisticCenterGame {
     ctx.fill();
     ctx.stroke();
 
-    // Lưới gạch lát sàn nhẹ
     ctx.clip();
     ctx.strokeStyle = 'rgba(180, 130, 80, 0.22)';
     ctx.lineWidth = 1.2;
@@ -782,7 +1235,6 @@ class LogisticCenterGame {
       ctx.moveTo(95 + i * 52, 55);
       ctx.lineTo(95 + i * 52 + 360, 445);
       ctx.stroke();
-
       ctx.beginPath();
       ctx.moveTo(95 + i * 52, 445);
       ctx.lineTo(95 + i * 52 + 360, 55);
@@ -790,12 +1242,10 @@ class LogisticCenterGame {
     }
     ctx.restore();
 
-    // 4. Tường sau nhà kho + cửa cuốn xuất hàng mở
     ctx.save();
     ctx.fillStyle = '#f3dfc1';
     ctx.strokeStyle = '#9c6635';
     ctx.lineWidth = 3;
-    // Tường trái sau
     ctx.beginPath();
     ctx.moveTo(95, 255);
     ctx.lineTo(95, 145);
@@ -805,7 +1255,6 @@ class LogisticCenterGame {
     ctx.fill();
     ctx.stroke();
 
-    // Tường phải sau + khung cửa xuất hàng
     ctx.beginPath();
     ctx.moveTo(390, 55);
     ctx.lineTo(390, 15);
@@ -815,7 +1264,6 @@ class LogisticCenterGame {
     ctx.fill();
     ctx.stroke();
 
-    // Cửa cuốn bốc hàng màu xám ấm
     ctx.fillStyle = '#6b7280';
     ctx.beginPath();
     ctx.moveTo(575, 135);
@@ -827,7 +1275,6 @@ class LogisticCenterGame {
     ctx.stroke();
     ctx.restore();
 
-    // Hàm vẽ asset thật kèm bóng đổ mềm
     const drawProp = (file, x, y, sz, fallbackLabel) => {
       ctx.save();
       ctx.fillStyle = 'rgba(92, 64, 38, 0.16)';
@@ -856,29 +1303,15 @@ class LogisticCenterGame {
       }
     };
 
-    // 5. Các thiết bị kho bằng asset thật (kệ hàng, tủ lạnh, bàn đóng gói, thùng hàng, xe tải đậu cửa xuất)
     drawProp('shelf-rack.png', 200, 185, 128, 'Kệ hàng');
     drawProp('shelf-rack.png', 485, 125, 122, 'Kệ hàng');
-    if (this.state.level >= GAME_CONFIG.unlocks.coldShelfLevel) {
-      drawProp('shelf-cold.png', 330, 130, 128, 'Kệ lạnh');
-    } else {
-      drawProp('shelf-cold.png', 330, 130, 118, 'Kệ lạnh (Lv2)');
-    }
-
-    // Xe tải đậu tại cửa xuất hàng bên phải
+    drawProp('shelf-cold.png', 330, 130, this.state.level >= GAME_CONFIG.unlocks.coldShelfLevel ? 128 : 118, 'Kệ lạnh');
     drawProp('truck-small.png', 795, 165, 155, 'Xe tải');
-
-    // 2 Bàn đóng gói + thùng hàng trên bàn
     drawProp('packing-table.png', 560, 355, 116, 'Bàn đóng gói 1');
-    if (this.state.packingTables[0].orderId !== null) {
-      drawProp('boxes.png', 560, 330, 56, 'Thùng');
-    }
+    if (this.state.packingTables[0].orderId !== null) drawProp('boxes.png', 560, 330, 56, 'Thùng');
     drawProp('packing-table.png', 675, 295, 116, 'Bàn đóng gói 2');
-    if (this.state.packingTables[1].orderId !== null) {
-      drawProp('boxes.png', 675, 270, 56, 'Thùng');
-    }
+    if (this.state.packingTables[1].orderId !== null) drawProp('boxes.png', 675, 270, 56, 'Thùng');
 
-    // 6. Các thực thể chuyển động sắp xếp chiều sâu Y-sorting (băng chuyền, xe nâng, nhân viên, tài xế, xe giao hàng)
     const drawList = [
       this.conveyor,
       ...this.workers,
@@ -888,7 +1321,6 @@ class LogisticCenterGame {
     ].sort((a, b) => a.y - b.y);
     drawList.forEach((e) => e.draw(ctx, this.assets));
 
-    // 7. Vệt nắng ấm & chu kỳ ngày/hoàng hôn/tối
     let tint = 'rgba(255, 232, 175, 0.08)';
     let badge = '☀️ Nắng sáng';
     if (progress > 0.78) {
@@ -902,12 +1334,10 @@ class LogisticCenterGame {
     ctx.fillRect(0, 0, w, h);
     document.getElementById('daylight-badge').textContent = badge;
 
-    // 8. Vẽ đồng thời dải Mini-Map & Bản đồ tuyến giao hàng
     this.drawMiniMap();
     this.drawRouteMap();
   }
 
-  // ===== VẼ MINI-MAP DƯỚI CẢNH KHO (ĐÚNG ẢNH MẪU) =====
   drawMiniMap() {
     const ctx = this.miniMapCtx;
     const w = this.miniMapCanvas.width;
@@ -916,7 +1346,6 @@ class LogisticCenterGame {
     ctx.fillStyle = '#c5e495';
     ctx.fillRect(0, 0, w, h);
 
-    // Đường uốn lượn
     ctx.strokeStyle = '#64748b';
     ctx.lineWidth = 22;
     ctx.lineCap = 'round';
@@ -934,13 +1363,11 @@ class LogisticCenterGame {
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // Nhà Khu 1 & Cửa hàng Khu 2 bằng asset thật
     const house = this.assets.get('city-house.png');
     const shop = this.assets.get('city-shop.png');
     if (house) ctx.drawImage(house, 14, 10, 42, 42);
     if (shop) ctx.drawImage(shop, 224, 8, 44, 44);
 
-    // Xe đang chạy trên mini-map
     if (this.activeVehicles.length > 0) {
       this.activeVehicles.forEach((v) => {
         const t = Math.min(1, Math.max(0, v.progress));
@@ -955,7 +1382,6 @@ class LogisticCenterGame {
     }
   }
 
-  // ===== VẼ BẢN ĐỒ THẬT TRONG TAB PHỐI XE & BẢN ĐỒ =====
   drawRouteMap() {
     const ctx = this.routeMapCtx;
     const w = this.routeMapCanvas.width;
@@ -964,7 +1390,6 @@ class LogisticCenterGame {
     ctx.fillStyle = '#bfe08e';
     ctx.fillRect(0, 0, w, h);
 
-    // Tuyến đường nối Kho -> Khu 1 -> Khu 2
     const drawRoad = (x1, y1, x2, y2, highlight) => {
       ctx.save();
       ctx.strokeStyle = highlight ? '#f47a2a' : '#64748b';
@@ -988,19 +1413,16 @@ class LogisticCenterGame {
     drawRoad(55, 115, 200, 75, this.selectedZoneId === 'zone1' || this.selectedZoneId === 'zone2');
     drawRoad(200, 75, 330, 105, this.selectedZoneId === 'zone2');
 
-    // Điểm xuất phát: Kho trung tâm
     const boxesImg = this.assets.get('boxes.png');
     if (boxesImg) ctx.drawImage(boxesImg, 24, 82, 54, 54);
     ctx.fillStyle = '#3d220d';
     ctx.font = 'bold 11px sans-serif';
     ctx.fillText('KHO', 38, 148);
 
-    // Khu 1: city-house.png
     const houseImg = this.assets.get('city-house.png');
     if (houseImg) ctx.drawImage(houseImg, 170, 26, 62, 62);
     ctx.fillText('Khu 1', 184, 102);
 
-    // Khu 2: city-shop.png
     const shopImg = this.assets.get('city-shop.png');
     const z2Unlocked = this.state.level >= GAME_CONFIG.unlocks.zone2AndRushLevel;
     ctx.save();
@@ -1009,7 +1431,6 @@ class LogisticCenterGame {
     ctx.restore();
     ctx.fillText(z2Unlocked ? 'Khu 2' : 'Khu 2 (Lv3)', 302, 130);
 
-    // Xe đang chạy trực tiếp trên bản đồ tuyến đường
     this.activeVehicles.forEach((v) => {
       const t = Math.min(1, Math.max(0, v.progress));
       const endX = v.zone && v.zone.id === 'zone2' ? 325 : 198;
@@ -1031,9 +1452,21 @@ class LogisticCenterGame {
     document.getElementById('stat-phase').textContent = progress > 0.78 ? '🌙' : progress > 0.58 ? '🌇' : '☀️';
   }
 
+  updateHeaderMoneyAndDebt() {
+    document.getElementById('stat-money').textContent = this.state.money.toLocaleString();
+    const debtPill = document.getElementById('hud-debt-pill');
+    const debtEl = document.getElementById('stat-debt');
+    if (this.state.bank.loan > 0) {
+      debtEl.textContent = `$${this.state.bank.loan.toLocaleString()}`;
+      debtPill.classList.remove('hidden');
+    } else {
+      debtPill.classList.add('hidden');
+    }
+  }
+
   renderAllUI() {
     document.getElementById('stat-day-label').textContent = `Ngày ${this.state.day}`;
-    document.getElementById('stat-money').textContent = this.state.money.toLocaleString();
+    this.updateHeaderMoneyAndDebt();
     document.getElementById('stat-rep').textContent = this.state.reputation;
     document.getElementById('stat-level').textContent = this.state.level;
 
@@ -1048,10 +1481,10 @@ class LogisticCenterGame {
     this.renderPacking();
     this.renderDispatch();
     this.renderSupplier();
+    this.renderBank();
     this.renderStaff();
   }
 
-  // Thẻ đơn hàng dạng thẻ game có hình món hàng
   renderOrderStrip() {
     const strip = document.getElementById('orders-strip');
     document.getElementById('order-count').textContent = this.state.orders.length;
@@ -1092,7 +1525,6 @@ class LogisticCenterGame {
     }
   }
 
-  // Panel bàn đóng gói mini ở dải dưới
   renderDockPacking() {
     const box = document.getElementById('dock-packing-cards');
     box.innerHTML = '';
@@ -1116,6 +1548,7 @@ class LogisticCenterGame {
     }
   }
 
+  // Tab 1: Soạn hàng (Kệ) + Kho dự trữ + Châm hàng + Hiển thị HSD gần nhất / Sắp hết hạn!
   renderShelves() {
     const hint = document.getElementById('pick-hint');
     const selected = this.state.orders.find((o) => o.id === this.selectedOrderId);
@@ -1138,11 +1571,27 @@ class LogisticCenterGame {
 
     for (const p of PRODUCTS) {
       const locked = p.cold && !coldUnlocked;
-      const qty = this.getStockCount(p.id);
+      const shelfQty = this.getStockCount(p.id);
+      const reserveQty = this.getReserveCount(p.id);
       const minHsd = this.getMinShelfLife(p.id);
       const itemIconSrc = this.assets.getSrc(p.iconAsset);
-      const hsdClass = minHsd === null ? 'hsd-none' : minHsd <= 2 ? 'hsd-warn' : 'hsd-ok';
-      const hsdText = minHsd !== null ? `HSD: ${minHsd} ngày` : (p.shelfLife ? 'Hết hàng' : 'Không HSD');
+
+      let hsdClass = 'hsd-none';
+      let hsdText = 'Không HSD';
+      if (minHsd !== null) {
+        if (minHsd <= 1) {
+          hsdClass = 'hsd-danger';
+          hsdText = `⚠️ Sắp hết hạn! (${minHsd} ngày)`;
+        } else if (minHsd <= 2) {
+          hsdClass = 'hsd-warn';
+          hsdText = `HSD gần nhất: ${minHsd} ngày`;
+        } else {
+          hsdClass = 'hsd-ok';
+          hsdText = `HSD gần nhất: ${minHsd} ngày`;
+        }
+      } else if (p.shelfLife) {
+        hsdText = 'Hết hàng';
+      }
 
       const card = document.createElement('div');
       card.className = `vcard ${p.cold ? 'cold' : ''} ${locked ? 'locked' : ''}`;
@@ -1150,13 +1599,18 @@ class LogisticCenterGame {
         <div class="vcard-head">
           <img class="vcard-thumb" src="${itemIconSrc}" alt="${p.name}" />
           <div class="vcard-info">
-            <div class="vcard-title">${p.name} (Tồn: ${qty})</div>
+            <div class="vcard-title">${p.name}</div>
+            <div class="vcard-sub">Kệ <strong>${shelfQty}/${GAME_CONFIG.shelfCapacity}</strong> • Dự trữ <strong>${reserveQty}</strong></div>
             <span class="hsd-tag ${hsdClass}">${hsdText}</span>
           </div>
         </div>
-        <button class="game-btn btn-teal" ${locked || qty <= 0 ? 'disabled' : ''}>${locked ? '🔒 Mở ở Cấp 2' : '✋ Soạn 1 món'}</button>
+        <div class="card-btn-row">
+          <button class="game-btn btn-teal btn-pick-one" ${locked || shelfQty <= 0 ? 'disabled' : ''}>${locked ? '🔒 Cấp 2' : '✋ Soạn 1'}</button>
+          <button class="game-btn btn-orange btn-replenish-one" ${locked ? 'disabled' : ''}>📥 Châm hàng</button>
+        </div>
       `;
-      card.querySelector('button').onclick = () => this.pickFromShelf(p.id);
+      card.querySelector('.btn-pick-one').onclick = () => this.pickFromShelf(p.id);
+      card.querySelector('.btn-replenish-one').onclick = () => this.replenishShelf(p.id);
       grid.appendChild(card);
     }
   }
@@ -1265,27 +1719,73 @@ class LogisticCenterGame {
     }
   }
 
+  // Tab 4: 3 Nhà cung cấp + so sánh giá + đặt 5 / 10 / 20 sp + lịch giao thực tế
   renderSupplier() {
+    const selBox = document.getElementById('supplier-selector');
+    selBox.innerHTML = '';
+    for (const s of SUPPLIERS) {
+      const card = document.createElement('div');
+      card.className = `sup-tab-card ${this.selectedSupplierId === s.id ? 'active' : ''}`;
+      card.onclick = () => { this.selectedSupplierId = s.id; this.renderSupplier(); };
+      card.innerHTML = `
+        <div class="sup-tab-name">${s.code}: ${s.name}</div>
+        <div class="sup-tab-badge">${s.badge}</div>
+        <div class="sup-tab-desc">${s.desc}</div>
+      `;
+      selBox.appendChild(card);
+    }
+
+    const activeSupplier = SUPPLIERS.find((s) => s.id === this.selectedSupplierId) || SUPPLIERS[1];
     const pGrid = document.getElementById('supplier-products');
     pGrid.innerHTML = '';
+
     for (const p of PRODUCTS) {
-      const locked = p.cold && this.state.level < GAME_CONFIG.unlocks.coldShelfLevel;
+      const coldLocked = p.cold && this.state.level < GAME_CONFIG.unlocks.coldShelfLevel;
+      const notSoldHere = !activeSupplier.products.includes(p.id);
+      const locked = coldLocked || notSoldHere;
       const rackSrc = this.assets.getSrc(p.cold ? 'shelf-cold.png' : 'shelf-rack.png');
-      const hsdClass = p.shelfLife === null ? 'hsd-none' : p.shelfLife <= 3 ? 'hsd-warn' : 'hsd-ok';
       const itemIconSrc = this.assets.getSrc(p.iconAsset);
+      const hsdClass = p.shelfLife === null ? 'hsd-none' : p.shelfLife <= 3 ? 'hsd-warn' : 'hsd-ok';
+
+      const unitPrice = this.getSupplierUnitPrice(p, activeSupplier);
+      const cost5 = this.getSupplierOrderCost(p, activeSupplier, 5);
+      const cost10 = this.getSupplierOrderCost(p, activeSupplier, 10);
+      const cost20 = this.getSupplierOrderCost(p, activeSupplier, 20);
+
+      // So sánh giá 2 nhà còn lại
+      const compareText = SUPPLIERS
+        .filter((s) => s.id !== activeSupplier.id)
+        .map((s) => {
+          if (!s.products.includes(p.id)) return `${s.code}: Không bán`;
+          return `${s.code}: $${this.getSupplierUnitPrice(p, s)}/sp`;
+        })
+        .join(' • ');
+
       const card = document.createElement('div');
       card.className = `vcard ${p.cold ? 'cold' : ''} ${locked ? 'locked' : ''}`;
       card.innerHTML = `
         <div class="vcard-head">
           <img class="vcard-thumb" src="${rackSrc}" alt="${p.name}" />
           <div class="vcard-info">
-            <div class="vcard-title"><img class="inline-prod-icon" src="${itemIconSrc}" alt="${p.name}" />${p.name} ($${p.buyPrice}/sp)</div>
+            <div class="vcard-title"><img class="inline-prod-icon" src="${itemIconSrc}" alt="${p.name}" />${p.name} ${notSoldHere ? '' : `($${unitPrice}/sp)`}</div>
             <span class="hsd-tag ${hsdClass}">${p.shelfLife ? `HSD: ${p.shelfLife} ngày` : 'Không hết hạn'}</span>
           </div>
         </div>
-        <button class="game-btn btn-teal" ${locked ? 'disabled' : ''}>Đặt 5 sp ($${p.buyPrice * 5})</button>
+        <div class="price-compare">So sánh: ${compareText}</div>
+        ${notSoldHere
+          ? `<div class="vcard-sub" style="color:#b91c1c;font-weight:700;">Không bán tại ${activeSupplier.name}</div>`
+          : coldLocked
+            ? `<button class="game-btn btn-teal" disabled>🔒 Mở Kệ lạnh ở Cấp 2</button>`
+            : `<div class="sup-qty-row">
+                <button class="game-btn btn-teal sup-qty-btn" data-qty="5">5 sp<br/>$${cost5}</button>
+                <button class="game-btn btn-teal sup-qty-btn" data-qty="10">10 (-5%)<br/>$${cost10}</button>
+                <button class="game-btn btn-orange sup-qty-btn" data-qty="20">20 (-10%)<br/>$${cost20}</button>
+              </div>`
+        }
       `;
-      card.querySelector('button').onclick = () => this.buyProductFromSupplier(p.id, 5);
+      card.querySelectorAll('.sup-qty-btn').forEach((btn) => {
+        btn.onclick = () => this.buyProductFromSupplier(p.id, Number(btn.dataset.qty), activeSupplier.id);
+      });
       pGrid.appendChild(card);
     }
 
@@ -1313,14 +1813,33 @@ class LogisticCenterGame {
     const pend = document.getElementById('pending-deliveries');
     const truckSrc = this.assets.getSrc('truck-small.png');
     if (this.state.pendingDeliveries.length === 0) {
-      pend.innerHTML = `<img src="${truckSrc}" alt="Xe hàng" /> <span>Chưa có hàng chờ giao sáng mai</span>`;
+      pend.innerHTML = `<img src="${truckSrc}" alt="Xe hàng" /> <span>Chưa có chuyến hàng nào đang giao</span>`;
     } else {
       const summary = this.state.pendingDeliveries.map((d) => {
         const p = PRODUCTS.find((x) => x.id === d.productId);
-        return `${p.name} ×${d.qty}`;
-      }).join(', ');
-      pend.innerHTML = `<img src="${truckSrc}" alt="Xe hàng" /> <span>Sáng mai về: ${summary}</span>`;
+        const s = SUPPLIERS.find((x) => x.id === d.supplierId);
+        const hh = String(d.arriveHour || 8).padStart(2, '0');
+        return `${s ? s.code : 'NCC'}: ${p ? p.name : d.productId} ×${d.qty} (Ngày ${d.arriveDay} ${hh}:00)`;
+      }).join(' | ');
+      pend.innerHTML = `<img src="${truckSrc}" alt="Xe hàng" /> <span>Đang giao: ${summary}</span>`;
     }
+  }
+
+  // Tab 5: Ngân hàng
+  renderBank() {
+    const limit = this.getCreditLimit();
+    const loan = this.state.bank.loan;
+    const avail = Math.max(0, limit - loan);
+    const minRepay = this.getMinDailyRepayment();
+    const savings = this.state.bank.savings;
+    const estSavingsInt = Math.round(savings * GAME_CONFIG.bank.savingsInterestRate);
+
+    document.getElementById('bank-limit').textContent = `$${limit.toLocaleString()}`;
+    document.getElementById('bank-loan').textContent = `$${loan.toLocaleString()}`;
+    document.getElementById('bank-avail').textContent = `$${avail.toLocaleString()}`;
+    document.getElementById('bank-min-repay').textContent = `$${minRepay.toLocaleString()}`;
+    document.getElementById('bank-savings').textContent = `$${savings.toLocaleString()}`;
+    document.getElementById('bank-savings-est').textContent = `+$${estSavingsInt.toLocaleString()}`;
   }
 
   renderStaff() {
