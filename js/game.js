@@ -144,6 +144,14 @@ class LogisticCenterGame {
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed.money === 'number' && typeof parsed.day === 'number') {
         this.state = { ...this.createInitialState(), ...parsed };
+        // Ân hạn tối thiểu 30 giây cho các đơn đang chờ sau khi tải lại trang
+        if (Array.isArray(this.state.orders)) {
+          this.state.orders.forEach((o) => {
+            if (o.status !== 'delivering' && typeof o.timeLeft === 'number' && o.timeLeft < 30) {
+              o.timeLeft = 30;
+            }
+          });
+        }
         this.log(`📂 Đã tải dữ liệu lưu (Ngày ${this.state.day}, $${this.state.money}).`);
       }
     } catch (e) {
@@ -300,7 +308,7 @@ class LogisticCenterGame {
     const zoneCfg = ZONES.find((z) => z.id === zone);
     reward += zoneCfg.bonus;
 
-    const timeLimit = isRush ? 75 : 130;
+    const timeLimit = isRush ? 150 : 260;
     const order = {
       id: this.state.nextOrderId++,
       isRush,
@@ -353,9 +361,13 @@ class LogisticCenterGame {
     const table = this.state.packingTables.find((t) => t.id === tableId);
     if (!table || table.orderId !== null) return;
 
-    const order = this.state.orders.find((o) => o.status === 'ready_to_pack');
+    const readyOrders = this.state.orders
+      .filter((o) => o.status === 'ready_to_pack')
+      .sort((a, b) => a.id - b.id);
+    const order = readyOrders[0];
     if (!order) {
-      this.log('⚠️ Chưa có đơn nào soạn xong để đưa lên bàn đóng gói.');
+      this.log('⚠️ Chưa có đơn chờ đóng gói.');
+      alert('Chưa có đơn chờ đóng gói.');
       return;
     }
     if (this.state.supplies.box < 1 || this.state.supplies.tape < 1) {
@@ -614,6 +626,7 @@ class LogisticCenterGame {
       <div class="sum-row"><span>Hàng hết hạn bị hủy</span><strong>${expiredCount} sp</strong></div>
       <div class="sum-row"><span>Số dư còn lại</span><strong style="color:#0f766e">$${this.state.money}</strong></div>
     `;
+    document.getElementById('stat-money').textContent = this.state.money.toLocaleString();
     document.getElementById('summary-modal').classList.remove('hidden');
     this.saveGame(`tổng kết Ngày ${this.state.day}`);
   }
@@ -656,7 +669,7 @@ class LogisticCenterGame {
 
     const maxActiveOrders = this.state.level <= 2 ? 3 : this.state.level <= 4 ? 4 : 5;
     this.orderSpawnTimer += dt;
-    if (this.orderSpawnTimer >= 24) {
+    if (this.orderSpawnTimer >= 36) {
       this.orderSpawnTimer = 0;
       if (this.state.orders.length < maxActiveOrders) this.spawnOrder();
     }
@@ -1095,8 +1108,8 @@ class LogisticCenterGame {
       };
       const pct = t.orderId ? Math.min(100, Math.floor(t.progress)) : 0;
       div.innerHTML = `
-        <img src="${t.orderId ? boxSrc : tableSrc}" alt="Bàn ${t.id}" />
-        <strong>${t.orderId ? `Đơn #${t.orderId} (${pct}%)` : `Bàn #${t.id} Trống`}</strong>
+        <img src="${t.orderId ? boxSrc : tableSrc}" alt="" />
+        <strong>${t.orderId ? `Bàn #${t.id} — Đơn #${t.orderId} (${pct}%)` : `Bàn #${t.id} — Trống`}</strong>
         <div class="mini-prog-track"><div class="mini-prog-fill" style="width:${pct}%"></div></div>
       `;
       box.appendChild(div);
@@ -1150,15 +1163,16 @@ class LogisticCenterGame {
 
   renderPacking() {
     const boxSrc = this.assets.getSrc('boxes.png');
+    const readyCount = this.state.orders.filter((o) => o.status === 'ready_to_pack').length;
     document.getElementById('supplies-bar').innerHTML = `
-      <div class="sup-chip"><img src="${boxSrc}" alt="Thùng" /> Thùng carton: <strong>${this.state.supplies.box}</strong></div>
-      <div class="sup-chip"><img src="${boxSrc}" alt="Băng dính" /> Băng dính: <strong>${this.state.supplies.tape}</strong></div>
-      <div class="sup-chip"><img src="${this.assets.getSrc('shelf-cold.png')}" alt="Túi lạnh" /> Túi giữ lạnh: <strong>${this.state.supplies.coldBag}</strong></div>
+      <div class="sup-chip"><img src="${boxSrc}" alt="" /> Thùng carton: <strong>${this.state.supplies.box}</strong></div>
+      <div class="sup-chip"><img src="${boxSrc}" alt="" /> Băng dính: <strong>${this.state.supplies.tape}</strong></div>
+      <div class="sup-chip"><img src="${this.assets.getSrc('shelf-cold.png')}" alt="" /> Túi giữ lạnh: <strong>${this.state.supplies.coldBag}</strong></div>
+      <div class="sup-chip">📋 Đơn chờ đóng gói: <strong>${readyCount}</strong></div>
     `;
 
     const grid = document.getElementById('packing-tables');
     grid.innerHTML = '';
-    const readyCount = this.state.orders.filter((o) => o.status === 'ready_to_pack').length;
     const tableSrc = this.assets.getSrc('packing-table.png');
 
     for (const t of this.state.packingTables) {
@@ -1167,14 +1181,14 @@ class LogisticCenterGame {
       card.className = 'vcard';
       card.innerHTML = `
         <div class="vcard-head">
-          <img class="vcard-thumb" src="${t.orderId ? boxSrc : tableSrc}" alt="Bàn ${t.id}" />
+          <img class="vcard-thumb" src="${t.orderId ? boxSrc : tableSrc}" alt="" />
           <div class="vcard-info">
-            <div class="vcard-title">Bàn đóng gói #${t.id}</div>
-            <div class="vcard-sub">${t.orderId ? `Đang gói Đơn #${t.orderId} (${pct}%)` : `Chờ đóng gói: ${readyCount} đơn`}</div>
+            <div class="vcard-title">Bàn #${t.id}</div>
+            <div class="vcard-sub">${t.orderId ? `Đang gói Đơn #${t.orderId} (${pct}%)` : 'Trống'}</div>
           </div>
         </div>
         <div class="mini-prog-track"><div class="mini-prog-fill" style="width:${pct}%"></div></div>
-        <button class="game-btn btn-orange" ${t.orderId || readyCount === 0 ? 'disabled' : ''}>📦 Đóng gói 1 đơn</button>
+        <button class="game-btn btn-orange" ${t.orderId ? 'disabled' : ''}>📦 Đóng gói 1 đơn</button>
       `;
       card.querySelector('button').onclick = () => this.assignToPackingTable(t.id);
       grid.appendChild(card);

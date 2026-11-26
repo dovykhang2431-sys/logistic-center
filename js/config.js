@@ -1,7 +1,7 @@
 /**
  * Cấu hình trung tâm cho Logistic Center — Phase 1
  */
-const VERSION = "1.0.1";
+const VERSION = "1.0.2";
 const SAVE_KEY = "logistic-center-v1";
 
 const GAME_CONFIG = {
@@ -9,7 +9,7 @@ const GAME_CONFIG = {
   startingReputation: 50,
   minReputation: 0,
   maxReputation: 100,
-  dayDurationSec: 120, // 2 phút thực = 1 ngày làm việc (08:00 -> 20:00)
+  dayDurationSec: 240, // 4 phút thực = 1 ngày làm việc (08:00 -> 20:00)
   fixedCosts: {
     rent: 50,            // Thuê kho $50/ngày
     utilities: 20,       // Điện nước $20/ngày
