@@ -7,7 +7,7 @@
  * - Xe nâng: forklift-1 -> 2 -> 3
  */
 class AnimatedEntity {
-  constructor({ x, y, width, height, frames, fps = 6, vx = 0, vy = 0, label = '' }) {
+  constructor({ x, y, width, height, frames, fps = 6, vx = 0, vy = 0, label = '', fallbackAsset = null, shadow = true }) {
     this.x = x;
     this.y = y;
     this.width = width;
@@ -17,6 +17,8 @@ class AnimatedEntity {
     this.vx = vx;
     this.vy = vy;
     this.label = label;
+    this.fallbackAsset = fallbackAsset;
+    this.shadow = shadow;
     this.frameIndex = 0;
     this.timer = 0;
   }
@@ -36,19 +38,34 @@ class AnimatedEntity {
 
   draw(ctx, assets) {
     const file = this.frames[this.frameIndex];
-    const sprite = assets.get(file);
+    const sprite = assets.get(file) || (this.fallbackAsset ? assets.get(this.fallbackAsset) : null);
+
+    // Bóng đổ mềm dưới chân thực thể
+    if (this.shadow) {
+      ctx.save();
+      ctx.fillStyle = 'rgba(92, 64, 38, 0.18)';
+      ctx.beginPath();
+      ctx.ellipse(this.x, this.y + this.height * 0.34, this.width * 0.34, this.height * 0.12, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
     if (sprite) {
       ctx.drawImage(sprite, this.x - this.width / 2, this.y - this.height / 2, this.width, this.height);
     } else {
+      // Thẻ chibi kem/gỗ ấm nếu đang tải asset
       ctx.save();
-      ctx.fillStyle = '#3b82f6';
+      ctx.fillStyle = '#fff8eb';
+      ctx.strokeStyle = '#c88a4b';
+      ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.arc(this.x, this.y, 18, 0, Math.PI * 2);
+      ctx.roundRect(this.x - 28, this.y - 16, 56, 32, 10);
       ctx.fill();
-      ctx.fillStyle = '#fff';
-      ctx.font = '10px sans-serif';
+      ctx.stroke();
+      ctx.fillStyle = '#6b4226';
+      ctx.font = 'bold 10px sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText(this.label || file, this.x, this.y + 4);
+      ctx.fillText(this.label || '...', this.x, this.y + 4);
       ctx.restore();
     }
   }
@@ -57,14 +74,14 @@ class AnimatedEntity {
 class WorkerEntity extends AnimatedEntity {
   constructor(x, y) {
     super({
-      x, y, width: 72, height: 72,
+      x, y, width: 84, height: 84,
       frames: ASSET_MANIFEST.animations.workerWalk,
-      fps: 7, label: 'Worker'
+      fps: 7, label: 'Kho', fallbackAsset: 'worker-warehouse.png'
     });
     this.carrying = false;
-    this.targetX = 360;
-    this.targetY = 230;
-    this.speed = 65;
+    this.targetX = 460;
+    this.targetY = 265;
+    this.speed = 68;
   }
 
   update(dt) {
@@ -78,11 +95,11 @@ class WorkerEntity extends AnimatedEntity {
         : ASSET_MANIFEST.animations.workerWalk;
       this.frameIndex = 0;
       if (this.carrying) {
-        this.targetX = 180 + Math.random() * 40;
-        this.targetY = 180 + Math.random() * 30;
+        this.targetX = 235 + Math.random() * 60;
+        this.targetY = 215 + Math.random() * 40;
       } else {
-        this.targetX = 350 + Math.random() * 50;
-        this.targetY = 220 + Math.random() * 40;
+        this.targetX = 470 + Math.random() * 80;
+        this.targetY = 250 + Math.random() * 55;
       }
     } else {
       this.vx = (dx / dist) * this.speed;
@@ -95,19 +112,19 @@ class WorkerEntity extends AnimatedEntity {
 class DriverEntity extends AnimatedEntity {
   constructor(x, y) {
     super({
-      x, y, width: 74, height: 74,
+      x, y, width: 86, height: 86,
       frames: ASSET_MANIFEST.animations.driverWalk,
-      fps: 6, label: 'Driver'
+      fps: 6, label: 'Tài xế', fallbackAsset: 'driver.png'
     });
     this.dir = 1;
-    this.minX = 430;
-    this.maxX = 620;
+    this.minX = 590;
+    this.maxX = 760;
     this.speed = 46;
   }
 
   update(dt) {
     this.vx = this.dir * this.speed;
-    this.vy = this.dir * 8;
+    this.vy = this.dir * 10;
     if (this.x > this.maxX) this.dir = -1;
     if (this.x < this.minX) this.dir = 1;
     super.update(dt);
@@ -117,12 +134,12 @@ class DriverEntity extends AnimatedEntity {
 class VehicleEntity extends AnimatedEntity {
   constructor({ type, x, y, orders, zone, onComplete }) {
     const cfg = VEHICLE_TYPES[type];
-    const sizes = { bike: 86, truckSmall: 118, truckLarge: 140 };
-    const sz = sizes[type] || 100;
+    const sizes = { bike: 96, truckSmall: 132, truckLarge: 154 };
+    const sz = sizes[type] || 110;
     super({
       x, y, width: sz, height: sz,
       frames: ASSET_MANIFEST.animations[cfg.animKey],
-      fps: 10, label: cfg.name
+      fps: 10, label: cfg.name, fallbackAsset: cfg.idleAsset
     });
     this.type = type;
     this.speed = cfg.speed;
@@ -130,13 +147,17 @@ class VehicleEntity extends AnimatedEntity {
     this.zone = zone;
     this.onComplete = onComplete;
     this.done = false;
+    this.progress = 0; // 0 -> 1 trên đường giao hàng
   }
 
   update(dt) {
-    this.vx = -this.speed;
-    this.vy = this.speed * 0.36;
+    const distMult = this.zone ? this.zone.distanceMult : 1;
+    const travelSec = (typeSpeed => (4.8 * distMult) * (120 / typeSpeed))(this.speed);
+    this.progress += dt / travelSec;
+    this.vx = -this.speed * 0.85;
+    this.vy = this.speed * 0.34;
     super.update(dt);
-    if (this.x < -110 || this.y > 540) {
+    if (this.progress >= 1 || this.x < -120 || this.y > 560) {
       this.done = true;
       if (this.onComplete) this.onComplete(this);
     }
@@ -146,9 +167,9 @@ class VehicleEntity extends AnimatedEntity {
 class ForkliftEntity extends AnimatedEntity {
   constructor(x, y) {
     super({
-      x, y, width: 104, height: 104,
+      x, y, width: 122, height: 122,
       frames: ASSET_MANIFEST.animations.forklift,
-      fps: 2, label: 'Forklift'
+      fps: 2, label: 'Xe nâng', fallbackAsset: 'forklift.png'
     });
     this.active = true;
     this.baseX = x;
@@ -162,8 +183,8 @@ class ForkliftEntity extends AnimatedEntity {
       return;
     }
     this.phase += dt * 1.1;
-    this.x = this.baseX + Math.sin(this.phase) * 38;
-    this.y = this.baseY + Math.sin(this.phase) * 14;
+    this.x = this.baseX + Math.sin(this.phase) * 44;
+    this.y = this.baseY + Math.sin(this.phase) * 16;
     super.update(dt);
   }
 }

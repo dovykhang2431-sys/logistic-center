@@ -1,11 +1,11 @@
-# Logistic Center — Phase 1 (v1.0)
+# Logistic Center — Phase 1 (v1.0 UI Redesign)
 
 ## Cách chạy thử
-1. Giải nén file `logistic-center-v1.0.zip`.
-2. (Tuỳ chọn) Bổ sung 13 ảnh asset gốc và 6 khung hình công nhân (`worker-walk-1..4.png`, `worker-carry-1..2.png`) vào thư mục `logistic-center/assets/`.
+1. Giải nén file `logistic-center-v1.0-ui.zip`.
+2. Chép thư mục `assets/` (13 ảnh gốc + 26 khung hình chuyển động) vào bên trong `logistic-center/`.
 3. Chạy máy chủ cục bộ tại thư mục `logistic-center`:
    ```bash
    python3 -m http.server 8000
    ```
-   *(Hoặc dùng Live Server trong VS Code).*
-4. Mở trình duyệt tại `http://localhost:8000`.
+   *(Hoặc mở bằng Live Server trên VS Code).*
+4. Truy cập `http://localhost:8000` (nếu đã từng mở bản cũ, hãy bấm Ctrl+Shift+R hoặc mở Tab Ẩn danh).

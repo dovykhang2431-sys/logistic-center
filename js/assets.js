@@ -1,6 +1,7 @@
 /**
  * AssetManager — Quản lý đúng 13 asset gốc + 26 khung hình chuyển động trong thư mục assets/
- * Tự động tách nền trắng (chroma-key) để sprite hiển thị mượt trên canvas.
+ * Tự động tách nền trắng (chroma-key) để sprite hiển thị mượt trên canvas và UI.
+ * Tải bất đồng bộ kèm timeout 5s để vòng lặp game chạy ngay lập tức.
  */
 const ASSET_MANIFEST = {
   // 13 asset gốc
@@ -35,7 +36,11 @@ const ASSET_MANIFEST = {
 class AssetManager {
   constructor() {
     this.images = new Map();
+    this.dataUrls = new Map();
     this.status = new Map();
+    for (const file of this.getAllFilenames()) {
+      this.status.set(file, 'loading');
+    }
   }
 
   getAllFilenames() {
@@ -43,23 +48,60 @@ class AssetManager {
     return [...ASSET_MANIFEST.base, ...animFiles];
   }
 
-  async loadAll() {
-    const files = this.getAllFilenames();
-    await Promise.all(files.map((file) => this.loadOne(file)));
+  isLoadingAny() {
+    for (const val of this.status.values()) {
+      if (val === 'loading') return true;
+    }
+    return false;
   }
 
-  loadOne(filename) {
+  loadAll(onProgress = null) {
+    const files = this.getAllFilenames();
+    return Promise.all(
+      files.map((file) =>
+        this.loadOne(file).then(() => {
+          if (onProgress) onProgress(file);
+        })
+      )
+    );
+  }
+
+  loadOne(filename, timeoutMs = 5000) {
     return new Promise((resolve) => {
+      let settled = false;
+      const done = () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve();
+      };
+
+      const timer = setTimeout(() => {
+        if (this.status.get(filename) === 'loading') {
+          this.status.set(filename, false);
+        }
+        done();
+      }, timeoutMs);
+
       const img = new Image();
       img.onload = () => {
         const cleaned = this.removeWhiteBackground(img);
         this.images.set(filename, cleaned);
+        try {
+          if (cleaned instanceof HTMLCanvasElement) {
+            this.dataUrls.set(filename, cleaned.toDataURL('image/png'));
+          } else {
+            this.dataUrls.set(filename, `assets/${filename}`);
+          }
+        } catch (e) {
+          this.dataUrls.set(filename, `assets/${filename}`);
+        }
         this.status.set(filename, true);
-        resolve();
+        done();
       };
       img.onerror = () => {
         this.status.set(filename, false);
-        resolve();
+        done();
       };
       img.src = `assets/${filename}`;
     });
@@ -88,5 +130,9 @@ class AssetManager {
 
   get(filename) {
     return this.images.get(filename) || null;
+  }
+
+  getSrc(filename) {
+    return this.dataUrls.get(filename) || `assets/${filename}`;
   }
 }
