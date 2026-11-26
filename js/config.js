@@ -1,7 +1,7 @@
 /**
- * Cấu hình trung tâm cho Logistic Center — Phase 2 (v1.1)
+ * Cấu hình trung tâm cho Logistic Center — v1.2
  */
-const VERSION = "1.1";
+const VERSION = "1.2";
 const SAVE_KEY = "logistic-center-v1";
 
 const GAME_CONFIG = {

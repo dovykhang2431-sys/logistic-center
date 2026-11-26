@@ -1,4 +1,4 @@
-const CACHE_NAME = 'logistic-center-cache-v1.1';
+const CACHE_NAME = 'logistic-center-cache-v1.2';
 const CORE_ASSETS = [
   './',
   './index.html',
@@ -7,12 +7,13 @@ const CORE_ASSETS = [
   './js/config.js',
   './js/assets.js',
   './js/entities.js',
-  './js/game.js'
+  './js/game.js',
+  './assets/scene-bg.png'
 ];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(CORE_ASSETS))
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(CORE_ASSETS).catch(() => {}))
   );
   self.skipWaiting();
 });

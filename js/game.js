@@ -11,8 +11,6 @@ class LogisticCenterGame {
   constructor() {
     this.canvas = document.getElementById('game-canvas');
     this.ctx = this.canvas.getContext('2d');
-    this.miniMapCanvas = document.getElementById('mini-map-canvas');
-    this.miniMapCtx = this.miniMapCanvas.getContext('2d');
     this.routeMapCanvas = document.getElementById('route-map-canvas');
     this.routeMapCtx = this.routeMapCanvas.getContext('2d');
 
@@ -32,13 +30,13 @@ class LogisticCenterGame {
     this.uiTickTimer = 0;
     this.lastTime = 0;
 
-    // Thực thể hoạt hình trong kho isometric (giữ nguyên hệ thống entities.js)
+    // Sprite động phủ trên nền assets/scene-bg.png (tọa độ chuẩn 1260x540)
     this.conveyor = new AnimatedEntity({
-      x: 410, y: 270, width: 210, height: 210,
+      x: 475, y: 295, width: 170, height: 170,
       frames: ASSET_MANIFEST.animations.conveyor,
       fps: 6, label: 'Băng chuyền', fallbackAsset: 'conveyor.png'
     });
-    this.forklift = new ForkliftEntity(490, 330);
+    this.forklift = new ForkliftEntity(610, 315);
     this.workers = [];
     this.drivers = [];
     this.activeVehicles = [];
@@ -101,7 +99,7 @@ class LogisticCenterGame {
     document.getElementById('app-version').textContent = `v${VERSION}`;
     this.loadGame();
     this.speedMultiplier = this.state.speedMultiplier || 1;
-    document.getElementById('btn-speed').textContent = `⏩ ${this.speedMultiplier}x`;
+    document.getElementById('btn-speed').textContent = `${this.speedMultiplier}x`;
     this.syncVisualStaff();
     this.renderAssetModal();
     this.renderAllUI();
@@ -227,7 +225,7 @@ class LogisticCenterGame {
     this.activeVehicles = [];
     this.selectedPackedIds.clear();
     this.speedMultiplier = this.state.speedMultiplier || 1;
-    document.getElementById('btn-speed').textContent = `⏩ ${this.speedMultiplier}x`;
+    document.getElementById('btn-speed').textContent = `${this.speedMultiplier}x`;
     document.getElementById('btn-pause').textContent = '⏸';
     document.getElementById('bankrupt-modal').classList.add('hidden');
     document.getElementById('summary-modal').classList.add('hidden');
@@ -246,7 +244,7 @@ class LogisticCenterGame {
     this.summaryOpen = false;
     this.paused = false;
     this.speedMultiplier = 1;
-    document.getElementById('btn-speed').textContent = '⏩ 1x';
+    document.getElementById('btn-speed').textContent = '1x';
     document.getElementById('btn-pause').textContent = '⏸';
     document.getElementById('bankrupt-modal').classList.add('hidden');
     document.getElementById('summary-modal').classList.add('hidden');
@@ -260,27 +258,45 @@ class LogisticCenterGame {
   syncVisualStaff() {
     this.workers = [];
     for (let i = 0; i < this.state.staff.workers; i++) {
-      this.workers.push(new WorkerEntity(270 + i * 38, 230 + (i % 2) * 35));
+      this.workers.push(new WorkerEntity(350 + i * 42, 245 + (i % 2) * 35));
     }
     this.drivers = [];
     for (let i = 0; i < this.state.staff.drivers; i++) {
-      this.drivers.push(new DriverEntity(610 + i * 36, 330 + (i % 2) * 20));
+      this.drivers.push(new DriverEntity(780 + i * 35, 280 + (i % 2) * 20));
     }
   }
 
   // ===== SỰ KIỆN UI =====
   bindUI() {
-    const switchTab = (tabId) => {
-      document.querySelectorAll('.gtab').forEach((b) => b.classList.toggle('active', b.dataset.tab === tabId));
+    this.openDrawerTab = (tabId) => {
+      document.getElementById('menu-drawer').classList.remove('hidden');
+      document.getElementById('menu-backdrop').classList.remove('hidden');
+      document.querySelectorAll('.dtab').forEach((b) => b.classList.toggle('active', b.dataset.tab === tabId));
       document.querySelectorAll('.tab-content').forEach((p) => p.classList.toggle('active', p.id === tabId));
       this.renderAllUI();
     };
 
-    document.querySelectorAll('.gtab').forEach((btn) => {
-      btn.onclick = () => switchTab(btn.dataset.tab);
-    });
+    const closeDrawer = () => {
+      document.getElementById('menu-drawer').classList.add('hidden');
+      document.getElementById('menu-backdrop').classList.add('hidden');
+    };
 
-    document.getElementById('dock-minimap-box').onclick = () => switchTab('tab-dispatch');
+    document.getElementById('btn-open-menu').onclick = () => {
+      const drawer = document.getElementById('menu-drawer');
+      if (drawer.classList.contains('hidden')) {
+        drawer.classList.remove('hidden');
+        document.getElementById('menu-backdrop').classList.remove('hidden');
+        this.renderAllUI();
+      } else {
+        closeDrawer();
+      }
+    };
+    document.getElementById('btn-close-menu').onclick = closeDrawer;
+    document.getElementById('menu-backdrop').onclick = closeDrawer;
+
+    document.querySelectorAll('.dtab').forEach((btn) => {
+      btn.onclick = () => this.openDrawerTab(btn.dataset.tab);
+    });
 
     document.getElementById('btn-pause').onclick = () => {
       this.paused = !this.paused;
@@ -291,7 +307,7 @@ class LogisticCenterGame {
     document.getElementById('btn-speed').onclick = () => {
       this.speedMultiplier = this.speedMultiplier === 1 ? 2 : 1;
       this.state.speedMultiplier = this.speedMultiplier;
-      document.getElementById('btn-speed').textContent = `⏩ ${this.speedMultiplier}x`;
+      document.getElementById('btn-speed').textContent = `${this.speedMultiplier}x`;
       this.saveGame();
     };
 
@@ -871,8 +887,8 @@ class LogisticCenterGame {
 
     const vehEntity = new VehicleEntity({
       type: this.selectedVehicleType,
-      x: 860,
-      y: 235 + Math.random() * 45,
+      x: 960,
+      y: 180 + Math.random() * 35,
       orders: pickedOrders,
       zone: zoneCfg,
       onComplete: (v) => this.completeVehicleDelivery(v)
@@ -1183,135 +1199,17 @@ class LogisticCenterGame {
     if (uiDirty) this.renderAllUI();
   }
 
-  // ===== VẼ CẢNH KHO ISOMETRIC DOLLHOUSE =====
+  // ===== VẼ SPRITE ĐỘNG TRÊN NỀN assets/scene-bg.png (KHÔNG VẼ CẢNH RỜI RẠC) =====
   drawScene() {
     const ctx = this.ctx;
     const w = this.canvas.width;
     const h = this.canvas.height;
     const progress = this.state.dayElapsed / GAME_CONFIG.dayDurationSec;
 
-    const bgGrad = ctx.createLinearGradient(0, 0, 0, h);
-    bgGrad.addColorStop(0, '#fbe9c9');
-    bgGrad.addColorStop(1, '#f3d8ab');
-    ctx.fillStyle = bgGrad;
-    ctx.fillRect(0, 0, w, h);
+    // Xóa trong suốt để lộ ảnh nền assets/scene-bg.png bên dưới
+    ctx.clearRect(0, 0, w, h);
 
-    ctx.save();
-    ctx.fillStyle = '#9ca3af';
-    ctx.beginPath();
-    ctx.moveTo(640, 30);
-    ctx.lineTo(960, 175);
-    ctx.lineTo(960, 390);
-    ctx.lineTo(540, 200);
-    ctx.closePath();
-    ctx.fill();
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 4;
-    ctx.setLineDash([20, 16]);
-    ctx.beginPath();
-    ctx.moveTo(660, 105);
-    ctx.lineTo(950, 240);
-    ctx.stroke();
-    ctx.restore();
-
-    ctx.save();
-    ctx.fillStyle = '#fff5e4';
-    ctx.strokeStyle = '#9c6635';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(390, 55);
-    ctx.lineTo(805, 240);
-    ctx.lineTo(510, 445);
-    ctx.lineTo(95, 255);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.clip();
-    ctx.strokeStyle = 'rgba(180, 130, 80, 0.22)';
-    ctx.lineWidth = 1.2;
-    for (let i = -8; i <= 14; i++) {
-      ctx.beginPath();
-      ctx.moveTo(95 + i * 52, 55);
-      ctx.lineTo(95 + i * 52 + 360, 445);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(95 + i * 52, 445);
-      ctx.lineTo(95 + i * 52 + 360, 55);
-      ctx.stroke();
-    }
-    ctx.restore();
-
-    ctx.save();
-    ctx.fillStyle = '#f3dfc1';
-    ctx.strokeStyle = '#9c6635';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(95, 255);
-    ctx.lineTo(95, 145);
-    ctx.lineTo(390, 15);
-    ctx.lineTo(390, 55);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.moveTo(390, 55);
-    ctx.lineTo(390, 15);
-    ctx.lineTo(805, 195);
-    ctx.lineTo(805, 240);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.fillStyle = '#6b7280';
-    ctx.beginPath();
-    ctx.moveTo(575, 135);
-    ctx.lineTo(725, 200);
-    ctx.lineTo(725, 132);
-    ctx.lineTo(575, 67);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-    ctx.restore();
-
-    const drawProp = (file, x, y, sz, fallbackLabel) => {
-      ctx.save();
-      ctx.fillStyle = 'rgba(92, 64, 38, 0.16)';
-      ctx.beginPath();
-      ctx.ellipse(x, y + sz * 0.34, sz * 0.36, sz * 0.12, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-
-      const img = this.assets.get(file);
-      if (img) {
-        ctx.drawImage(img, x - sz / 2, y - sz / 2, sz, sz);
-      } else {
-        ctx.save();
-        ctx.fillStyle = '#fff8eb';
-        ctx.strokeStyle = '#c88a4b';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.roundRect(x - 34, y - 18, 68, 36, 10);
-        ctx.fill();
-        ctx.stroke();
-        ctx.fillStyle = '#6b4226';
-        ctx.font = 'bold 11px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(fallbackLabel, x, y + 4);
-        ctx.restore();
-      }
-    };
-
-    drawProp('shelf-rack.png', 200, 185, 128, 'Kệ hàng');
-    drawProp('shelf-rack.png', 485, 125, 122, 'Kệ hàng');
-    drawProp('shelf-cold.png', 330, 130, this.state.level >= GAME_CONFIG.unlocks.coldShelfLevel ? 128 : 118, 'Kệ lạnh');
-    drawProp('truck-small.png', 795, 165, 155, 'Xe tải');
-    drawProp('packing-table.png', 560, 355, 116, 'Bàn đóng gói 1');
-    if (this.state.packingTables[0].orderId !== null) drawProp('boxes.png', 560, 330, 56, 'Thùng');
-    drawProp('packing-table.png', 675, 295, 116, 'Bàn đóng gói 2');
-    if (this.state.packingTables[1].orderId !== null) drawProp('boxes.png', 675, 270, 56, 'Thùng');
-
+    // Sắp xếp chiều sâu Y-sorting cho các sprite động
     const drawList = [
       this.conveyor,
       ...this.workers,
@@ -1321,65 +1219,16 @@ class LogisticCenterGame {
     ].sort((a, b) => a.y - b.y);
     drawList.forEach((e) => e.draw(ctx, this.assets));
 
-    let tint = 'rgba(255, 232, 175, 0.08)';
-    let badge = '☀️ Nắng sáng';
+    // Phủ ánh sáng hoàng hôn / tối nhẹ theo chu kỳ ngày
     if (progress > 0.78) {
-      tint = 'rgba(30, 41, 75, 0.34)';
-      badge = '🌙 Buổi tối';
+      ctx.fillStyle = 'rgba(20, 30, 62, 0.30)';
+      ctx.fillRect(0, 0, w, h);
     } else if (progress > 0.58) {
-      tint = 'rgba(244, 122, 42, 0.18)';
-      badge = '🌇 Hoàng hôn';
+      ctx.fillStyle = 'rgba(244, 122, 42, 0.14)';
+      ctx.fillRect(0, 0, w, h);
     }
-    ctx.fillStyle = tint;
-    ctx.fillRect(0, 0, w, h);
-    document.getElementById('daylight-badge').textContent = badge;
 
-    this.drawMiniMap();
     this.drawRouteMap();
-  }
-
-  drawMiniMap() {
-    const ctx = this.miniMapCtx;
-    const w = this.miniMapCanvas.width;
-    const h = this.miniMapCanvas.height;
-
-    ctx.fillStyle = '#c5e495';
-    ctx.fillRect(0, 0, w, h);
-
-    ctx.strokeStyle = '#64748b';
-    ctx.lineWidth = 22;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(18, 72);
-    ctx.bezierCurveTo(95, 28, 175, 92, 262, 54);
-    ctx.stroke();
-
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 2;
-    ctx.setLineDash([7, 6]);
-    ctx.beginPath();
-    ctx.moveTo(18, 72);
-    ctx.bezierCurveTo(95, 28, 175, 92, 262, 54);
-    ctx.stroke();
-    ctx.setLineDash([]);
-
-    const house = this.assets.get('city-house.png');
-    const shop = this.assets.get('city-shop.png');
-    if (house) ctx.drawImage(house, 14, 10, 42, 42);
-    if (shop) ctx.drawImage(shop, 224, 8, 44, 44);
-
-    if (this.activeVehicles.length > 0) {
-      this.activeVehicles.forEach((v) => {
-        const t = Math.min(1, Math.max(0, v.progress));
-        const px = 28 + t * 215;
-        const py = 58 + Math.sin(t * Math.PI * 2) * 14;
-        const spr = this.assets.get(v.frames[v.frameIndex]) || this.assets.get(v.fallbackAsset);
-        if (spr) ctx.drawImage(spr, px - 22, py - 22, 44, 44);
-      });
-    } else {
-      const demoBike = this.assets.get('bike-1.png') || this.assets.get('bike-delivery.png');
-      if (demoBike) ctx.drawImage(demoBike, 118, 32, 42, 42);
-    }
   }
 
   drawRouteMap() {
@@ -1476,7 +1325,6 @@ class LogisticCenterGame {
     document.getElementById('xp-bar-fill').style.width = `${pct}%`;
 
     this.renderOrderStrip();
-    this.renderDockPacking();
     this.renderShelves();
     this.renderPacking();
     this.renderDispatch();
@@ -1487,22 +1335,28 @@ class LogisticCenterGame {
 
   renderOrderStrip() {
     const strip = document.getElementById('orders-strip');
+    const drawerList = document.getElementById('orders-drawer-list');
     document.getElementById('order-count').textContent = this.state.orders.length;
     strip.innerHTML = '';
+    if (drawerList) drawerList.innerHTML = '';
 
-    const statusShort = {
+    const btnActionText = {
       picking: 'Soạn',
-      ready_to_pack: 'Chờ gói',
+      ready_to_pack: 'Đóng gói',
       packing: 'Đang gói',
-      packed: 'Sẵn xe',
+      packed: 'Phối xe',
       delivering: 'Đang giao'
     };
 
-    for (const o of this.state.orders) {
-      const card = document.createElement('div');
-      card.className = `ticket-card ${o.isRush ? 'rush' : ''} ${this.selectedOrderId === o.id ? 'selected' : ''}`;
-      card.onclick = () => { this.selectedOrderId = o.id; this.renderAllUI(); };
+    const targetTabForStatus = {
+      picking: 'tab-pick',
+      ready_to_pack: 'tab-pack',
+      packing: 'tab-pack',
+      packed: 'tab-dispatch',
+      delivering: 'tab-dispatch'
+    };
 
+    for (const o of this.state.orders) {
       const itemsHtml = o.items.map((it) => {
         const p = PRODUCTS.find((x) => x.id === it.productId);
         const isDone = it.picked >= it.qty;
@@ -1510,41 +1364,48 @@ class LogisticCenterGame {
         return `<span class="item-pill ${isDone ? 'done' : ''}" title="${p.name}"><img class="item-mini-icon" src="${iconSrc}" alt="${p.name}" /> ${it.picked}/${it.qty}</span>`;
       }).join('');
 
+      const card = document.createElement('div');
+      card.className = `float-order-card ${o.isRush ? 'rush' : ''} ${this.selectedOrderId === o.id ? 'selected' : ''}`;
       card.innerHTML = `
-        <div class="ticket-top">
-          <span>#${o.id}${o.isRush ? ' 🔥' : ''}</span>
+        <div class="float-order-head">
+          <span>Đơn #${o.id}${o.isRush ? ' 🔥' : ''}</span>
           <span>⏱ ${Math.max(0, Math.ceil(o.timeLeft))}s</span>
         </div>
-        <div class="ticket-items">${itemsHtml}</div>
-        <div class="ticket-foot">
-          <span>$${o.reward}</span>
-          <span>${statusShort[o.status]}</span>
+        <div class="float-order-body">
+          <div class="float-order-items">${itemsHtml}</div>
+          <div class="float-order-right">
+            <span class="float-reward">$${o.reward}</span>
+            <button class="game-btn btn-teal btn-soan-card">${btnActionText[o.status]}</button>
+          </div>
         </div>
       `;
-      strip.appendChild(card);
-    }
-  }
-
-  renderDockPacking() {
-    const box = document.getElementById('dock-packing-cards');
-    box.innerHTML = '';
-    const boxSrc = this.assets.getSrc('boxes.png');
-    const tableSrc = this.assets.getSrc('packing-table.png');
-
-    for (const t of this.state.packingTables) {
-      const div = document.createElement('div');
-      div.className = 'mini-pack-card';
-      div.title = 'Bấm để gán đơn hoặc mở tab Đóng gói';
-      div.onclick = () => {
-        if (!t.orderId) this.assignToPackingTable(t.id);
+      card.onclick = () => {
+        this.selectedOrderId = o.id;
+        this.renderAllUI();
       };
-      const pct = t.orderId ? Math.min(100, Math.floor(t.progress)) : 0;
-      div.innerHTML = `
-        <img src="${t.orderId ? boxSrc : tableSrc}" alt="" />
-        <strong>${t.orderId ? `Bàn #${t.id} — Đơn #${t.orderId} (${pct}%)` : `Bàn #${t.id} — Trống`}</strong>
-        <div class="mini-prog-track"><div class="mini-prog-fill" style="width:${pct}%"></div></div>
-      `;
-      box.appendChild(div);
+      card.querySelector('.btn-soan-card').onclick = (e) => {
+        e.stopPropagation();
+        this.selectedOrderId = o.id;
+        this.openDrawerTab(targetTabForStatus[o.status] || 'tab-pick');
+      };
+      strip.appendChild(card);
+
+      // Đồng bộ danh sách trong tab Đơn hàng của Menu
+      if (drawerList) {
+        const dcard = document.createElement('div');
+        dcard.className = `vcard ${o.isRush ? 'rush' : ''}`;
+        dcard.innerHTML = `
+          <div class="vcard-title">Đơn #${o.id}${o.isRush ? ' 🔥 GẤP' : ''} • ⏱ ${Math.max(0, Math.ceil(o.timeLeft))}s</div>
+          <div class="float-order-items">${itemsHtml}</div>
+          <div class="vcard-sub">Thưởng: <strong>$${o.reward}</strong> • +${o.xp} XP</div>
+          <button class="game-btn btn-teal">${btnActionText[o.status]}</button>
+        `;
+        dcard.querySelector('button').onclick = () => {
+          this.selectedOrderId = o.id;
+          this.openDrawerTab(targetTabForStatus[o.status] || 'tab-pick');
+        };
+        drawerList.appendChild(dcard);
+      }
     }
   }
 

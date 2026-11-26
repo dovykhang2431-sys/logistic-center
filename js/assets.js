@@ -7,6 +7,7 @@
 const ASSET_MANIFEST = {
   // 8 ảnh cảnh kho chính cần hiển thị ngay lập tức
   primaryScene: [
+    'scene-bg.png',
     'shelf-rack.png',
     'shelf-cold.png',
     'conveyor.png',
@@ -18,6 +19,7 @@ const ASSET_MANIFEST = {
   ],
   // 13 asset gốc (giữ nguyên tên file cũ)
   base: [
+    'scene-bg.png',
     'shelf-rack.png',
     'shelf-cold.png',
     'conveyor.png',
@@ -134,7 +136,7 @@ class AssetManager {
       const img = new Image();
       img.onload = () => {
         if (img.naturalWidth > 0 && img.naturalHeight > 0) {
-          const cleaned = this.removeWhiteBackground(img);
+          const cleaned = filename === 'scene-bg.png' ? img : this.removeWhiteBackground(img);
           this.images.set(filename, cleaned);
           try {
             if (cleaned instanceof HTMLCanvasElement) {
