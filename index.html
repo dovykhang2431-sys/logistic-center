@@ -10,7 +10,7 @@
 </head>
 <body>
   <div id="app">
-    <!-- LỚP CẢNH KHO TOÀN MÀN HÌNH: ẢNH NỀN scene-bg.png + CANVAS SPRITE ĐỘNG -->
+    <!-- LỚP CẢNH 6 KHU VỰC ISOMETRIC DOLLHOUSE CẮT MỞ -->
     <div class="scene-layer" id="scene-layer">
       <canvas id="game-canvas" width="1260" height="540"></canvas>
       <div id="loading-overlay" class="loading-chip hidden">⏳ Đang tải cảnh kho...</div>
@@ -31,7 +31,7 @@
           <strong id="stat-money">2,000</strong>
         </div>
 
-        <div class="hud-chip chip-debt hidden" id="hud-debt-pill">
+        <div class="hud-chip chip-debt" id="hud-debt-pill">
           <span>💳 Nợ:</span>
           <strong id="stat-debt">$0</strong>
         </div>
@@ -47,7 +47,7 @@
             <div class="xp-fill" id="xp-bar-fill" style="width: 0%;"></div>
             <span class="xp-label">Cấp <strong id="stat-level">1</strong> (<span id="stat-xp">0/120</span>)</span>
           </div>
-          <span class="ver-pill" id="app-version">v1.2</span>
+          <span class="ver-pill" id="app-version">v1.3</span>
         </div>
       </div>
 
@@ -67,15 +67,15 @@
       </button>
     </section>
 
-    <!-- BẢNG MENU TRƯỢT LÊN (KHÔNG CHE HẾT CẢNH KHO) -->
+    <!-- BẢNG QUẢN LÝ TRƯỢT LÊN TỪ DƯỚI (KHÔNG CHE HẾT CẢNH 6 KHU) -->
     <div id="menu-backdrop" class="drawer-backdrop hidden"></div>
-    <section id="menu-drawer" class="menu-drawer hidden" aria-label="Bảng điều khiển">
-      <div class="drawer-top">
+    <section id="menu-drawer" class="menu-drawer hidden" aria-label="Bảng quản lý khu vực">
+      <div class="drawer-top" id="drawer-top">
         <nav class="drawer-tabs" id="drawer-tabs">
           <button class="dtab active" data-tab="tab-orders">📋 Đơn hàng</button>
-          <button class="dtab" data-tab="tab-pick">🧺 Kệ</button>
+          <button class="dtab" data-tab="tab-pick">🧺 Soạn hàng</button>
           <button class="dtab" data-tab="tab-pack">📦 Đóng gói</button>
-          <button class="dtab" data-tab="tab-dispatch">🚚 Phối xe</button>
+          <button class="dtab" data-tab="tab-dispatch">🚚 Giao hàng</button>
           <button class="dtab" data-tab="tab-supplier">🏭 Nhà cung cấp</button>
           <button class="dtab" data-tab="tab-staff">👷 Nhân viên</button>
           <button class="dtab" data-tab="tab-bank">🏦 Ngân hàng</button>
@@ -85,12 +85,14 @@
           <button class="util-btn btn-wood" id="btn-toggle-log" title="Nhật ký vận hành">📜</button>
           <button class="util-btn btn-wood" id="btn-assets" title="Kiểm tra Asset">🖼️</button>
           <button class="util-btn btn-wood" id="btn-reset" title="Chơi lại từ đầu">🔄</button>
-          <button class="util-btn btn-orange" id="btn-close-menu" title="Đóng Menu">✕</button>
+          <button class="util-btn btn-orange" id="btn-close-menu" title="Đóng bảng">✕</button>
         </div>
       </div>
 
-      <div class="drawer-body">
-        <!-- Tab 1: Đơn hàng (quản lý + Nhận đơn + Soạn tất cả) -->
+      <div class="drawer-zone-banner hidden" id="drawer-zone-banner"></div>
+
+      <div class="drawer-body" id="drawer-body">
+        <!-- Tab 1: Quầy Đơn hàng -->
         <div id="tab-orders" class="tab-content active">
           <div class="toolbar-row">
             <div class="wood-banner" style="margin:0; flex:1;">Đơn hàng đang hoạt động: <strong id="order-count">0</strong></div>
@@ -100,7 +102,7 @@
           <div id="orders-drawer-list" class="visual-grid"></div>
         </div>
 
-        <!-- Tab 2: Kệ (Soạn hàng + Kho dự trữ + Châm hàng) -->
+        <!-- Tab 2: Kho Kệ hàng (Soạn hàng + Kho dự trữ + Bổ sung kệ X/12) -->
         <div id="tab-pick" class="tab-content">
           <div class="toolbar-row">
             <div class="wood-banner" id="pick-hint" style="margin:0; flex:1;">Chọn một đơn hàng để bắt đầu soạn hàng bằng cách bấm đúng món trên kệ.</div>
@@ -109,18 +111,23 @@
           <div id="shelf-grid" class="visual-grid"></div>
         </div>
 
-        <!-- Tab 3: Đóng gói -->
+        <!-- Tab 3: Khu Đóng gói (Vật tư + Đơn chờ đóng gói + Bàn đóng gói) -->
         <div id="tab-pack" class="tab-content">
           <div class="supplies-strip" id="supplies-bar"></div>
+          <div class="sub-heading">📋 Danh sách đơn chờ đóng gói</div>
+          <div id="ready-to-pack-list" class="ready-pack-strip"></div>
+          <div class="sub-heading" style="margin-top:8px;">📦 Bàn đóng gói</div>
           <div id="packing-tables" class="visual-grid"></div>
         </div>
 
-        <!-- Tab 4: Phối xe & Bản đồ -->
+        <!-- Tab 4: Khu Giao hàng (Điều phối + Xe đang giao + Bản đồ tuyến) -->
         <div id="tab-dispatch" class="tab-content">
           <div class="dispatch-layout">
             <div class="dispatch-col">
               <div class="sub-heading">1. Đơn đã đóng gói</div>
               <div id="packed-orders-list" class="packed-cards"></div>
+              <div class="sub-heading" style="margin-top:10px;">🚚 Xe đang giao đơn</div>
+              <div id="active-deliveries-list" class="packed-cards"></div>
             </div>
             <div class="dispatch-col">
               <div class="sub-heading">2. Chọn xe</div>
@@ -137,7 +144,7 @@
           </div>
         </div>
 
-        <!-- Tab 5: 3 Nhà cung cấp -->
+        <!-- Tab 5: Khu Nhập hàng (3 Nhà cung cấp + Nhập hàng & Vật tư) -->
         <div id="tab-supplier" class="tab-content">
           <div id="supplier-selector" class="supplier-selector"></div>
           <div class="toolbar-row">
@@ -149,14 +156,16 @@
           <div id="supplier-supplies" class="visual-grid"></div>
         </div>
 
-        <!-- Tab 6: Nhân viên & Xe -->
+        <!-- Tab 6: Nhân viên & Xe (một phần của Văn phòng) -->
         <div id="tab-staff" class="tab-content">
+          <div class="office-sec-title">👷 Nhân viên & Đội xe</div>
           <div id="staff-panel" class="visual-grid"></div>
           <div id="unlocks-panel" class="wood-banner" style="margin-top:10px;"></div>
         </div>
 
-        <!-- Tab 7: Ngân hàng -->
+        <!-- Tab 7: Ngân hàng (một phần của Văn phòng) -->
         <div id="tab-bank" class="tab-content">
+          <div class="office-sec-title">🏦 Ngân hàng — Vay vốn & Tiết kiệm</div>
           <div class="bank-layout">
             <div class="bank-card">
               <div class="sub-heading">💳 Vay vốn kinh doanh (Lãi 1%/ngày)</div>
@@ -239,6 +248,7 @@
   <script src="js/config.js"></script>
   <script src="js/assets.js"></script>
   <script src="js/entities.js"></script>
+  <script src="js/scene6zones.js"></script>
   <script src="js/game.js"></script>
 </body>
 </html>

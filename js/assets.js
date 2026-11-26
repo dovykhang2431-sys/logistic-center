@@ -5,7 +5,7 @@
  *            sau đó mới tải nền (lazy-load) 26 khung hình animation.
  */
 const ASSET_MANIFEST = {
-  // 8 ảnh cảnh kho chính cần hiển thị ngay lập tức
+  // 14 ảnh cảnh kho chính cần hiển thị ngay lập tức
   primaryScene: [
     'scene-bg.png',
     'shelf-rack.png',
@@ -15,7 +15,10 @@ const ASSET_MANIFEST = {
     'forklift.png',
     'boxes.png',
     'truck-small.png',
-    'worker-warehouse.png'
+    'truck-large.png',
+    'bike-delivery.png',
+    'worker-warehouse.png',
+    'driver.png'
   ],
   // 13 asset gốc (giữ nguyên tên file cũ)
   base: [
@@ -136,17 +139,10 @@ class AssetManager {
       const img = new Image();
       img.onload = () => {
         if (img.naturalWidth > 0 && img.naturalHeight > 0) {
-          const cleaned = filename === 'scene-bg.png' ? img : this.removeWhiteBackground(img);
+          // Toàn bộ sprite PNG đã có kênh alpha trong suốt sẵn; chỉ lọc nền trắng nếu ảnh không có alpha ở góc
+          const cleaned = filename === 'scene-bg.png' ? img : this.cleanIfOpaqueWhite(img);
           this.images.set(filename, cleaned);
-          try {
-            if (cleaned instanceof HTMLCanvasElement) {
-              this.dataUrls.set(filename, cleaned.toDataURL('image/png'));
-            } else {
-              this.dataUrls.set(filename, resolvedUrl);
-            }
-          } catch (e) {
-            this.dataUrls.set(filename, resolvedUrl);
-          }
+          this.dataUrls.set(filename, resolvedUrl);
           this.status.set(filename, 'loaded');
           done(true);
         } else {
@@ -165,22 +161,32 @@ class AssetManager {
     return promise;
   }
 
-  removeWhiteBackground(img) {
+  cleanIfOpaqueWhite(img) {
     try {
       const c = document.createElement('canvas');
-      c.width = img.width;
-      c.height = img.height;
+      c.width = Math.min(8, img.naturalWidth);
+      c.height = Math.min(8, img.naturalHeight);
       const ctx = c.getContext('2d');
-      ctx.drawImage(img, 0, 0);
-      const imgData = ctx.getImageData(0, 0, c.width, c.height);
+      ctx.drawImage(img, 0, 0, c.width, c.height, 0, 0, c.width, c.height);
+      const px = ctx.getImageData(0, 0, 1, 1).data;
+      // Nếu góc ảnh đã trong suốt (alpha < 250) thì giữ nguyên ảnh gốc để không đục lỗ vùng sáng/trắng
+      if (px[3] < 250 || px[0] < 245 || px[1] < 245 || px[2] < 245) {
+        return img;
+      }
+      const full = document.createElement('canvas');
+      full.width = img.naturalWidth;
+      full.height = img.naturalHeight;
+      const fctx = full.getContext('2d');
+      fctx.drawImage(img, 0, 0);
+      const imgData = fctx.getImageData(0, 0, full.width, full.height);
       const d = imgData.data;
       for (let i = 0; i < d.length; i += 4) {
-        if (d[i] > 240 && d[i + 1] > 240 && d[i + 2] > 240) {
+        if (d[i] > 245 && d[i + 1] > 245 && d[i + 2] > 245) {
           d[i + 3] = 0;
         }
       }
-      ctx.putImageData(imgData, 0, 0);
-      return c;
+      fctx.putImageData(imgData, 0, 0);
+      return full;
     } catch (e) {
       return img;
     }
