@@ -380,3 +380,28 @@ body {
 .ok { color: #15803d; font-weight: 800; }
 .missing { color: #b45309; font-weight: 800; }
 .loading-tag { color: #0284c7; font-weight: 800; }
+
+/* ===== ICON SẢN PHẨM RIÊNG TRONG THẺ ĐƠN & Ô SOẠN HÀNG ===== */
+.item-pill img.item-mini-icon {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  vertical-align: middle;
+}
+.vcard-title img.inline-prod-icon {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  vertical-align: -3px;
+  margin-right: 3px;
+}
+.asset-summary-bar {
+  display: flex;
+  gap: 12px;
+  background: #f6e7cb;
+  border: 1.5px solid #c68e53;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 700;
+}

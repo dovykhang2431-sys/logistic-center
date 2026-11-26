@@ -96,19 +96,27 @@ class LogisticCenterGame {
       this.spawnOrder();
     }
 
-    // Hiện thông báo đang tải asset (không hiện khung xám trống) và chạy vòng lặp ngay lập tức
+    // Hiện thông báo đang tải ảnh cảnh chính (chỉ chờ 8 ảnh cảnh chính, không chờ 26 frame animation)
     const loadingEl = document.getElementById('loading-overlay');
-    if (this.assets.isLoadingAny()) loadingEl.classList.remove('hidden');
+    if (this.assets.isLoadingPrimary()) loadingEl.classList.remove('hidden');
 
     this.lastTime = performance.now();
     requestAnimationFrame((t) => this.loop(t));
 
-    this.assets.loadAll(() => {
-      this.renderAssetModal();
-      if (!this.assets.isLoadingAny()) {
+    // Bước 1: Tải ưu tiên 8 ảnh cảnh kho chính + 6 icon sản phẩm để cảnh hiện ngay sau vài giây đầu
+    this.assets.loadPrimary(() => {
+      if (!this.assets.isLoadingPrimary()) {
         loadingEl.classList.add('hidden');
-        this.renderAllUI();
       }
+      this.renderAssetModal();
+    }).then(() => {
+      loadingEl.classList.add('hidden');
+      this.renderAllUI();
+      this.renderAssetModal();
+      // Bước 2: Lazy-load 26 khung hình animation ở nền sau khi cảnh kho đã hiển thị
+      this.assets.loadSecondary(() => {
+        this.renderAssetModal();
+      });
     });
   }
 
@@ -207,6 +215,7 @@ class LogisticCenterGame {
     };
 
     document.getElementById('btn-assets').onclick = () => {
+      this.renderAssetModal();
       document.getElementById('asset-modal').classList.remove('hidden');
     };
     document.getElementById('btn-close-asset').onclick = () => {
@@ -1051,7 +1060,8 @@ class LogisticCenterGame {
       const itemsHtml = o.items.map((it) => {
         const p = PRODUCTS.find((x) => x.id === it.productId);
         const isDone = it.picked >= it.qty;
-        return `<span class="item-pill ${isDone ? 'done' : ''}">${p.icon} ${it.picked}/${it.qty}</span>`;
+        const iconSrc = this.assets.getSrc(p.iconAsset);
+        return `<span class="item-pill ${isDone ? 'done' : ''}" title="${p.name}"><img class="item-mini-icon" src="${iconSrc}" alt="${p.name}" /> ${it.picked}/${it.qty}</span>`;
       }).join('');
 
       card.innerHTML = `
@@ -1103,7 +1113,8 @@ class LogisticCenterGame {
     } else {
       const needText = selected.items.map((it) => {
         const p = PRODUCTS.find((x) => x.id === it.productId);
-        return `${p.icon} ${p.name} (${it.picked}/${it.qty})`;
+        const iconSrc = this.assets.getSrc(p.iconAsset);
+        return `<img src="${iconSrc}" alt="${p.name}" style="width:16px;height:16px;object-fit:contain;vertical-align:-3px;" /> ${p.name} (${it.picked}/${it.qty})`;
       }).join(' • ');
       hint.innerHTML = `✅ Đang soạn <strong>Đơn #${selected.id}</strong> — Cần lấy: <strong>${needText}</strong>`;
     }
@@ -1116,7 +1127,7 @@ class LogisticCenterGame {
       const locked = p.cold && !coldUnlocked;
       const qty = this.getStockCount(p.id);
       const minHsd = this.getMinShelfLife(p.id);
-      const rackSrc = this.assets.getSrc(p.cold ? 'shelf-cold.png' : 'shelf-rack.png');
+      const itemIconSrc = this.assets.getSrc(p.iconAsset);
       const hsdClass = minHsd === null ? 'hsd-none' : minHsd <= 2 ? 'hsd-warn' : 'hsd-ok';
       const hsdText = minHsd !== null ? `HSD: ${minHsd} ngày` : (p.shelfLife ? 'Hết hàng' : 'Không HSD');
 
@@ -1124,9 +1135,9 @@ class LogisticCenterGame {
       card.className = `vcard ${p.cold ? 'cold' : ''} ${locked ? 'locked' : ''}`;
       card.innerHTML = `
         <div class="vcard-head">
-          <img class="vcard-thumb" src="${rackSrc}" alt="${p.name}" />
+          <img class="vcard-thumb" src="${itemIconSrc}" alt="${p.name}" />
           <div class="vcard-info">
-            <div class="vcard-title">${p.icon} ${p.name} (Tồn: ${qty})</div>
+            <div class="vcard-title">${p.name} (Tồn: ${qty})</div>
             <span class="hsd-tag ${hsdClass}">${hsdText}</span>
           </div>
         </div>
@@ -1247,13 +1258,14 @@ class LogisticCenterGame {
       const locked = p.cold && this.state.level < GAME_CONFIG.unlocks.coldShelfLevel;
       const rackSrc = this.assets.getSrc(p.cold ? 'shelf-cold.png' : 'shelf-rack.png');
       const hsdClass = p.shelfLife === null ? 'hsd-none' : p.shelfLife <= 3 ? 'hsd-warn' : 'hsd-ok';
+      const itemIconSrc = this.assets.getSrc(p.iconAsset);
       const card = document.createElement('div');
       card.className = `vcard ${p.cold ? 'cold' : ''} ${locked ? 'locked' : ''}`;
       card.innerHTML = `
         <div class="vcard-head">
           <img class="vcard-thumb" src="${rackSrc}" alt="${p.name}" />
           <div class="vcard-info">
-            <div class="vcard-title">${p.icon} ${p.name} ($${p.buyPrice}/sp)</div>
+            <div class="vcard-title"><img class="inline-prod-icon" src="${itemIconSrc}" alt="${p.name}" />${p.name} ($${p.buyPrice}/sp)</div>
             <span class="hsd-tag ${hsdClass}">${p.shelfLife ? `HSD: ${p.shelfLife} ngày` : 'Không hết hạn'}</span>
           </div>
         </div>
@@ -1356,14 +1368,40 @@ class LogisticCenterGame {
 
   renderAssetModal() {
     const list = document.getElementById('asset-list');
+    if (!list) return;
     list.innerHTML = '';
-    for (const [name, ok] of this.assets.status.entries()) {
+    let loadedCount = 0;
+    let loadingCount = 0;
+    let missingCount = 0;
+
+    for (const [name, state] of this.assets.status.entries()) {
+      const isLoaded = state === 'loaded' || this.assets.images.has(name);
+      const isLoading = !isLoaded && state === 'loading';
+      if (isLoaded) loadedCount++;
+      else if (isLoading) loadingCount++;
+      else missingCount++;
+
       const div = document.createElement('div');
       div.className = 'asset-item';
-      const cls = ok === true ? 'ok' : ok === 'loading' ? 'loading-tag' : 'missing';
-      const txt = ok === true ? '✓ Có' : ok === 'loading' ? 'Đang tải...' : 'Thiếu';
+      const cls = isLoaded ? 'ok' : isLoading ? 'loading-tag' : 'missing';
+      const txt = isLoaded ? '✓ Có' : isLoading ? 'Đang tải...' : 'Thiếu';
       div.innerHTML = `<span>${name}</span><span class="${cls}">${txt}</span>`;
       list.appendChild(div);
+    }
+
+    const modalCard = list.closest('.modal-card');
+    if (modalCard) {
+      let bar = modalCard.querySelector('.asset-summary-bar');
+      if (!bar) {
+        bar = document.createElement('div');
+        bar.className = 'asset-summary-bar';
+        modalCard.insertBefore(bar, list);
+      }
+      bar.innerHTML = `
+        <span class="ok">✓ Đã nạp: ${loadedCount}</span>
+        <span class="loading-tag">⏳ Đang tải: ${loadingCount}</span>
+        <span class="missing">⚠️ Thiếu: ${missingCount}</span>
+      `;
     }
   }
 

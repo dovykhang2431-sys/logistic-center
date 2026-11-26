@@ -1,7 +1,7 @@
 {
   "name": "Logistic Center",
   "short_name": "LogisticCenter",
-  "description": "Game quản lý trung tâm logistics — Phase 1 (v1.0)",
+  "description": "Game quản lý trung tâm logistics — Phase 1 (v1.0.1)",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#f6ead4",

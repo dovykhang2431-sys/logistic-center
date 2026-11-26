@@ -1,7 +1,7 @@
 /**
  * Cấu hình trung tâm cho Logistic Center — Phase 1
  */
-const VERSION = "1.0";
+const VERSION = "1.0.1";
 const SAVE_KEY = "logistic-center-v1";
 
 const GAME_CONFIG = {
@@ -29,14 +29,14 @@ const GAME_CONFIG = {
   xpPerLevel: (level) => level * 120
 };
 
-// 6 loại hàng hóa + hạn sử dụng (ngày, null = không hết hạn)
+// 6 loại hàng hóa + ảnh icon sản phẩm riêng + hạn sử dụng (ngày, null = không hết hạn)
 const PRODUCTS = [
-  { id: 'electronics', name: 'Điện tử', icon: '📱', buyPrice: 45, sellPrice: 80, shelfLife: null, cold: false },
-  { id: 'clothing', name: 'Quần áo', icon: '👕', buyPrice: 25, sellPrice: 50, shelfLife: null, cold: false },
-  { id: 'household', name: 'Gia dụng', icon: '🏠', buyPrice: 30, sellPrice: 60, shelfLife: null, cold: false },
-  { id: 'food', name: 'Thực phẩm', icon: '🥗', buyPrice: 20, sellPrice: 48, shelfLife: 3, cold: false },
-  { id: 'beverage', name: 'Đồ uống', icon: '🧃', buyPrice: 15, sellPrice: 36, shelfLife: 5, cold: false },
-  { id: 'frozen', name: 'Đông lạnh', icon: '🧊', buyPrice: 35, sellPrice: 78, shelfLife: 7, cold: true }
+  { id: 'electronics', name: 'Điện tử', icon: '📱', iconAsset: 'item-electronics.png', buyPrice: 45, sellPrice: 80, shelfLife: null, cold: false },
+  { id: 'clothing', name: 'Quần áo', icon: '👕', iconAsset: 'item-clothing.png', buyPrice: 25, sellPrice: 50, shelfLife: null, cold: false },
+  { id: 'household', name: 'Gia dụng', icon: '🏠', iconAsset: 'item-household.png', buyPrice: 30, sellPrice: 60, shelfLife: null, cold: false },
+  { id: 'food', name: 'Thực phẩm', icon: '🥗', iconAsset: 'item-food.png', buyPrice: 20, sellPrice: 48, shelfLife: 3, cold: false },
+  { id: 'beverage', name: 'Đồ uống', icon: '🧃', iconAsset: 'item-beverage.png', buyPrice: 15, sellPrice: 36, shelfLife: 5, cold: false },
+  { id: 'frozen', name: 'Đông lạnh', icon: '🧊', iconAsset: 'item-frozen.png', buyPrice: 35, sellPrice: 78, shelfLife: 7, cold: true }
 ];
 
 // Vật tư đóng gói
